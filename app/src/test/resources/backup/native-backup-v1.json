@@ -1,0 +1,57 @@
+{
+  "payloadType": "healthdesk.native.backup",
+  "schemaVersion": 1,
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "exportedAt": 1783850400000,
+  "profile": {
+    "id": "local-user",
+    "displayName": "User",
+    "avatarMode": "initials",
+    "createdAt": 1783850400000,
+    "updatedAt": 1783850400000
+  },
+  "settings": {
+    "themeMode": "system",
+    "accentKey": "sage",
+    "languageCode": "en",
+    "timerMode": "normalTimer",
+    "workSessionMinutes": 50,
+    "restMinutes": 10,
+    "snoozeMinutes": 10,
+    "pomodoroCycles": 4,
+    "pomodoroShortRestMinutes": 5,
+    "pomodoroLongRestMinutes": 15,
+    "multiCycleCycles": 3,
+    "workingHoursEnabled": true,
+    "notificationsEnabled": true,
+    "hapticsEnabled": true,
+    "alarmSoundKey": "tone1",
+    "reminderSoundKey": "ring2",
+    "taskSoundKey": "ring1"
+  },
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Plan day",
+      "categoryId": "task-general",
+      "isCompleted": false,
+      "sortOrder": 0,
+      "createdAt": 1783850400000,
+      "updatedAt": 1783850400000
+    }
+  ],
+  "categories": [
+    {
+      "id": "task-general",
+      "scope": "task",
+      "name": "General",
+      "iconKey": "label",
+      "colorKey": "sage",
+      "sortOrder": 0,
+      "isBuiltIn": true,
+      "createdAt": 1783850400000,
+      "updatedAt": 1783850400000
+    }
+  ]
+}

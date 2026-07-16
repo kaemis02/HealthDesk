@@ -1,0 +1,13 @@
+HealthDesk is a local-only Android app for healthier workdays.
+
+Plan focus sessions, take breaks, keep simple tasks, and receive wellbeing reminders without an account, a backend, cloud sync, or tracking.
+
+Features:
+- Configurable focus modes, breaks, snooze, working hours, alarms, sound, and haptics
+- Water and custom reminders with interval, fixed-time, and recurring schedules
+- Simple task list with completion history and manual ordering
+- Local focus, task, and reminder statistics
+- Local profile, light/dark themes, English and Spanish
+- JSON export and import for local data portability
+
+All application data stays on your device. HealthDesk does not request Internet access and does not include analytics, advertising, Firebase, Google Sign-In, or cloud services.

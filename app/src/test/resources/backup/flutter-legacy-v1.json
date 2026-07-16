@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-07-12T10:00:00Z",
+  "settings": {
+    "workStart": "08:00",
+    "workEnd": "16:30",
+    "workingHoursEnabled": true,
+    "fullIntervalMinutes": 45,
+    "snoozeMinutes": 7,
+    "waterEnabled": true,
+    "waterIntervalMinutes": 50,
+    "pushNotificationsEnabled": true,
+    "hapticsEnabled": false,
+    "alarmSound": "tone2",
+    "reminderSound": "ring3",
+    "taskSound": "ring4",
+    "themeMode": "dark",
+    "languageCode": "es"
+  },
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Active",
+      "completed": false,
+      "sortOrder": 2,
+      "updatedAt": "2026-07-12T09:00:00Z"
+    }
+  ],
+  "completedTasks": [
+    {
+      "id": "task-2",
+      "title": "Done",
+      "completed": true,
+      "sortOrder": 3,
+      "updatedAt": "2026-07-11T09:00:00Z"
+    }
+  ],
+  "reminders": [
+    {
+      "id": "event-1",
+      "type": "Water",
+      "status": "Completed",
+      "createdAt": "2026-07-10T09:00:00Z"
+    }
+  ],
+  "customTimers": [
+    {
+      "id": "timer-1",
+      "name": "Stretch",
+      "mode": "interval",
+      "intervalMinutes": 30,
+      "fixedTime": "12:00",
+      "sound": "ring2",
+      "enabled": true,
+      "updatedAt": "2026-07-12T08:00:00Z"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+First public release of HealthDesk with offline focus sessions, reminders, tasks, statistics, local backup, and a home-screen widget.
