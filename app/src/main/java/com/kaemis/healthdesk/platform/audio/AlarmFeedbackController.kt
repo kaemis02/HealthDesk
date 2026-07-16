@@ -22,9 +22,12 @@ class AndroidAlarmFeedbackController(
 ) : AlarmFeedbackController {
     private var mediaPlayer: MediaPlayer? = null
     private val vibrator: Vibrator? = context.getSystemService(Vibrator::class.java)
+    private var alarmRunning = false
 
     override fun startAlarm(soundKey: String, hapticsEnabled: Boolean) {
-        stopAlarm()
+        // Restoring the app must not restart an alarm loop that is already audible.
+        if (alarmRunning) return
+        alarmRunning = true
         if (soundKey != "silent") {
             runCatching {
                 mediaPlayer = MediaPlayer.create(context, soundResource(soundKey))?.apply {
@@ -52,6 +55,7 @@ class AndroidAlarmFeedbackController(
             mediaPlayer?.release()
         }
         mediaPlayer = null
+        alarmRunning = false
         runCatching { vibrator?.cancel() }
     }
 

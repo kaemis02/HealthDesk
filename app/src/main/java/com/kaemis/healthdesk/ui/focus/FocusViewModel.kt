@@ -9,22 +9,27 @@ import com.kaemis.healthdesk.data.entity.WorkingHourRuleEntity
 import com.kaemis.healthdesk.data.repository.FocusSessionRepository
 import com.kaemis.healthdesk.data.repository.WorkingHoursRepository
 import com.kaemis.healthdesk.domain.focus.resolveFocusMode
+import com.kaemis.healthdesk.domain.focus.POMODORO_MODE_ID
+import com.kaemis.healthdesk.domain.focus.MULTI_CYCLE_MODE_ID
 import com.kaemis.healthdesk.platform.alarm.FocusAlarmScheduler
 import com.kaemis.healthdesk.platform.audio.AlarmFeedbackController
 import com.kaemis.healthdesk.platform.service.FocusActionCommand
 import com.kaemis.healthdesk.platform.service.FocusServiceController
 import java.util.UUID
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 enum class FocusPhase {
@@ -57,12 +62,15 @@ data class FocusUiState(
     val pendingOutsideWorkingHoursConfirmation: Boolean = false,
 )
 
+data class FocusCompletionEvent(val modeName: String)
+
 class FocusViewModel(
     private val settingsFlow: Flow<SettingsSnapshot>,
     private val focusSessionRepository: FocusSessionRepository,
     private val workingHoursRepository: WorkingHoursRepository,
     private val focusServiceController: FocusServiceController = FocusServiceController.NoOp,
     private val commandsFlow: Flow<FocusActionCommand> = emptyFlow(),
+    private val runtimeStateProvider: () -> FocusUiState? = { null },
     private val pendingCommands: () -> List<FocusActionCommand> = { emptyList() },
     private val acknowledgeCommand: (FocusActionCommand) -> Unit = {},
     private val focusAlarmScheduler: FocusAlarmScheduler = FocusAlarmScheduler.NoOp,
@@ -71,6 +79,8 @@ class FocusViewModel(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(FocusUiState())
     val state: StateFlow<FocusUiState> = mutableState
+    private val mutableCompletionEvents = MutableSharedFlow<FocusCompletionEvent>(extraBufferCapacity = 1)
+    val completionEvents = mutableCompletionEvents.asSharedFlow()
 
     val dashboardSummary: StateFlow<FocusDashboardSummary> = combine(
         mutableState,
@@ -98,6 +108,8 @@ class FocusViewModel(
     private var phaseBaseRestSeconds = 0L
     private var currentCycle = 1
     private var totalCycles = 1
+    private var activeModeType = "normalTimer"
+    private var activeModeName = "Normal"
     // A confirmed outside-hours session is valid; being outside is not itself a workday-end event.
     private var allowOutsideWorkingHoursForSession = false
     private var tickerJob: Job? = null
@@ -123,6 +135,7 @@ class FocusViewModel(
             workingHoursRepository.observeRules().collect { workingHourRules = it }
         }
         viewModelScope.launch {
+            restoreActiveSession()
             pendingCommands().forEach { command ->
                 handleExternalCommand(command)
                 acknowledgeCommand(command)
@@ -131,6 +144,45 @@ class FocusViewModel(
                 handleExternalCommand(command)
                 acknowledgeCommand(command)
             }
+        }
+    }
+
+    private suspend fun restoreActiveSession() {
+        // A user action may have created a new runtime phase while Room was loading.
+        if (mutableState.value.phase != FocusPhase.Idle) return
+        val activeSession = focusSessionRepository.observeActiveSession().first() ?: return
+        val runtime = runtimeStateProvider() ?: return
+        if (runtime.activeSessionId != activeSession.id || runtime.phase == FocusPhase.Idle) return
+        if (mutableState.value.phase != FocusPhase.Idle) return
+
+        session = activeSession
+        currentCycle = runtime.currentCycle
+        totalCycles = runtime.totalCycles
+        mutableState.value = runtime.copy(
+            actualFocusSeconds = activeSession.actualFocusSeconds,
+            actualRestSeconds = activeSession.actualRestSeconds,
+            snoozeCount = activeSession.snoozeCount,
+            pendingOutsideWorkingHoursConfirmation = false,
+        )
+        when (runtime.phase) {
+            FocusPhase.FocusAlarm,
+            FocusPhase.RestAlarm,
+            -> {
+                mutableState.update { it.copy(remainingSeconds = 0) }
+                focusServiceController.update(mutableState.value)
+                alarmFeedbackController.startAlarm(settings.alarmSoundKey, settings.hapticsEnabled)
+            }
+            FocusPhase.FocusRunning,
+            FocusPhase.RestRunning,
+            FocusPhase.Snoozed,
+            -> startPhase(runtime.phase, runtime.remainingSeconds.coerceAtLeast(1))
+            FocusPhase.FocusPaused,
+            FocusPhase.RestPaused,
+            -> {
+                focusServiceController.update(mutableState.value)
+                startTicker(checkOnly = true)
+            }
+            else -> Unit
         }
     }
 
@@ -188,6 +240,8 @@ class FocusViewModel(
         allowOutsideWorkingHoursForSession = allowOutsideWorkingHours
         mutableState.update { it.copy(pendingOutsideWorkingHoursConfirmation = false) }
         val resolvedMode = settings.resolveFocusMode()
+        activeModeType = resolvedMode.type
+        activeModeName = resolvedMode.name
         val now = nowProvider()
         currentCycle = 1
         totalCycles = resolvedMode.totalCycles()
@@ -250,7 +304,8 @@ class FocusViewModel(
                     completeOrStartNextCycle(endReason = "timerElapsed")
                 }
             }
-            FocusPhase.RestAlarm -> completeOrStartNextCycle(endReason = "restElapsed")
+            // Rest completion returns to ready; the next focus block is always explicit.
+            FocusPhase.RestAlarm -> finishSession(status = "completed", endReason = "restElapsed", targetPhase = FocusPhase.Completed)
             else -> Unit
         }
     }
@@ -416,6 +471,9 @@ class FocusViewModel(
             startPhase(FocusPhase.FocusRunning, settings.resolveFocusMode().workMinutes * 60L)
         } else {
             finishSession(status = "completed", endReason = endReason, targetPhase = FocusPhase.Completed)
+            if (activeModeType == POMODORO_MODE_ID || activeModeType == MULTI_CYCLE_MODE_ID) {
+                mutableCompletionEvents.tryEmit(FocusCompletionEvent(activeModeName))
+            }
         }
     }
 
@@ -461,6 +519,7 @@ class FocusViewModel(
             workingHoursRepository: WorkingHoursRepository,
             focusServiceController: FocusServiceController = FocusServiceController.NoOp,
             commandsFlow: Flow<FocusActionCommand> = emptyFlow(),
+            runtimeStateProvider: () -> FocusUiState? = { null },
             pendingCommands: () -> List<FocusActionCommand> = { emptyList() },
             acknowledgeCommand: (FocusActionCommand) -> Unit = {},
             focusAlarmScheduler: FocusAlarmScheduler = FocusAlarmScheduler.NoOp,
@@ -473,6 +532,7 @@ class FocusViewModel(
                 workingHoursRepository = workingHoursRepository,
                 focusServiceController = focusServiceController,
                 commandsFlow = commandsFlow,
+                runtimeStateProvider = runtimeStateProvider,
                 pendingCommands = pendingCommands,
                 acknowledgeCommand = acknowledgeCommand,
                 focusAlarmScheduler = focusAlarmScheduler,

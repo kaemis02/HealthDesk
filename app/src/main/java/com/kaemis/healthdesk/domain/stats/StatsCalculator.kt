@@ -19,7 +19,7 @@ object StatsCalculator {
         val today = Instant.ofEpochMilli(nowMillis).atZone(zoneId).toLocalDate()
         val monthStart = today.withDayOfMonth(1)
         val monthDays = (0 until today.lengthOfMonth()).map { monthStart.plusDays(it.toLong()) }
-        val sessionsToday = focusSessions.filter { millisToDate(it.startedAt, zoneId) == today && it.status == "completed" }
+        val sessionsToday = focusSessions.filter { millisToDate(it.startedAt, zoneId) == today && it.actualFocusSeconds > 0 }
         val completedToday = completedTasks.filter { it.completedAt?.let { completedAt -> millisToDate(completedAt, zoneId) == today } == true }
         val remindersToday = reminderEvents.filter { millisToDate(it.firedAt, zoneId) == today }
 
@@ -32,7 +32,7 @@ object StatsCalculator {
                 StatsDaySnapshot(
                     date = day.toString(),
                     focusMinutes = focusSessions.filter { millisToDate(it.startedAt, zoneId) == day }.sumOf { it.actualFocusSeconds } / 60,
-                    focusSessions = focusSessions.count { millisToDate(it.startedAt, zoneId) == day && it.status == "completed" },
+                    focusSessions = focusSessions.count { millisToDate(it.startedAt, zoneId) == day && it.actualFocusSeconds > 0 },
                     completedTasks = completedTasks.count { it.completedAt?.let { completedAt -> millisToDate(completedAt, zoneId) == day } == true },
                     reminders = reminderEvents.count { millisToDate(it.firedAt, zoneId) == day },
                 )
@@ -41,6 +41,13 @@ object StatsCalculator {
                 .sortedByDescending { it.completedAt }
                 .take(12)
                 .mapNotNull { task -> task.completedAt?.let { CompletedTaskStat(task.title, it) } },
+            focusSessions = focusSessions.map { session ->
+                FocusSessionStat(session.startedAt, session.endedAt, session.actualFocusSeconds, session.status, session.endReason)
+            },
+            completedTaskDetails = completedTasks.mapNotNull { task -> task.completedAt?.let { CompletedTaskStat(task.title, it) } },
+            reminderEvents = reminderEvents.map { event ->
+                ReminderEventStat(event.titleSnapshot, event.firedAt, event.deliveryResult)
+            },
         )
     }
 

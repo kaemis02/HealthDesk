@@ -79,6 +79,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -157,6 +158,7 @@ import com.kaemis.healthdesk.ui.tasks.TasksUiState
 import com.kaemis.healthdesk.ui.tasks.TasksViewModel
 import com.kaemis.healthdesk.ui.theme.HealthDeskTheme
 import com.kaemis.healthdesk.widgets.HealthDeskWidgetUpdater
+import com.kaemis.healthdesk.widgets.FocusWidgetStateStore
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -212,6 +214,17 @@ class MainActivity : ComponentActivity() {
                         workingHoursRepository = appContainer.workingHoursRepository,
                         focusServiceController = appContainer.focusServiceController,
                         commandsFlow = appContainer.focusActionBus.commands,
+                        runtimeStateProvider = {
+                            val runtime = FocusWidgetStateStore.load(applicationContext)
+                            FocusUiState(
+                                phase = FocusPhase.entries.firstOrNull { it.name == runtime.phase } ?: FocusPhase.Idle,
+                                remainingSeconds = runtime.remainingSeconds,
+                                totalSeconds = runtime.totalSeconds,
+                                activeSessionId = runtime.activeSessionId,
+                                currentCycle = runtime.currentCycle,
+                                totalCycles = runtime.totalCycles,
+                            )
+                        },
                         pendingCommands = appContainer.focusActionBus::pendingCommands,
                         acknowledgeCommand = appContainer.focusActionBus::acknowledge,
                         focusAlarmScheduler = appContainer.focusAlarmScheduler,
@@ -548,6 +561,7 @@ private fun FocusCard(
 ) {
     var showEditor by remember { mutableStateOf(false) }
     var showStats by remember { mutableStateOf(false) }
+    var completedModeName by remember { mutableStateOf<String?>(null) }
     var showNewCustomModeDialog by remember { mutableStateOf(false) }
     var newCustomModeName by remember { mutableStateOf("") }
     val selectedMode = settings.resolveFocusMode()
@@ -555,6 +569,10 @@ private fun FocusCard(
     val idleLike = state.phase == FocusPhase.Idle || state.phase == FocusPhase.Completed || state.phase == FocusPhase.Stopped
     val displaySeconds = if (idleLike) selectedMode.workMinutes.toLong() * 60L else state.remainingSeconds
     val insideWorkingHours = !settings.workingHoursEnabled || workingHourRules.isEmpty() || WorkingHoursEvaluator.isWithinWorkingHours(workingHourRules, System.currentTimeMillis())
+
+    LaunchedEffect(focusViewModel) {
+        focusViewModel.completionEvents.collect { event -> completedModeName = event.modeName }
+    }
 
     if (state.pendingOutsideWorkingHoursConfirmation) {
         AlertDialog(
@@ -570,6 +588,17 @@ private fun FocusCard(
                 TextButton(onClick = focusViewModel::cancelOutsideWorkingHoursStart) {
                     Text(strings.cancel)
                 }
+            },
+        )
+    }
+
+    completedModeName?.let { modeName ->
+        AlertDialog(
+            onDismissRequest = { completedModeName = null },
+            title = { Text(strings.cyclesCompleteTitle) },
+            text = { Text(strings.cyclesCompleteMessage(modeName)) },
+            confirmButton = {
+                TextButton(onClick = { completedModeName = null }) { Text(strings.done) }
             },
         )
     }
@@ -1320,7 +1349,7 @@ private fun ReminderCard(
                 )
             }
         }
-        Switch(checked = reminder.isEnabled, onCheckedChange = { remindersViewModel.toggleReminder(reminder) })
+        HealthDeskSwitch(checked = reminder.isEnabled, onCheckedChange = { remindersViewModel.toggleReminder(reminder) })
         OutlinedButton(onClick = { showEditor = true }) {
             Text(strings.edit)
         }
@@ -1447,7 +1476,7 @@ private fun ReminderEditorDialog(
                     if (draft.recurrenceUnit == "weekly") {
                         WeekdaySelector(
                             selected = draft.recurrenceWeekdays,
-                            days = listOf(1, 2, 3, 4, 5),
+                            languageCode = settings.languageCode,
                             onSelected = { selected -> draft = draft.copy(recurrenceWeekdays = selected) },
                         )
                     }
@@ -1517,12 +1546,14 @@ private fun ReminderEditorDialog(
 private fun WeekdaySelector(
     selected: Set<Int>,
     days: List<Int> = (1..7).toList(),
+    languageCode: String = "en",
     singleSelection: Boolean = false,
     onSelected: (Set<Int>) -> Unit,
 ) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         days.forEach { day ->
-            val label = java.time.DayOfWeek.of(day).getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
+            val locale = if (languageCode == "es") Locale.forLanguageTag("es") else Locale.ENGLISH
+            val label = java.time.DayOfWeek.of(day).getDisplayName(TextStyle.SHORT, locale)
             FilterChip(
                 selected = selected.contains(day),
                 onClick = {
@@ -1930,6 +1961,23 @@ private fun StatsScreen(
                         Text("${strings.focusSessionsToday}: ${day.focusSessions}")
                         Text("${strings.completedTasks}: ${day.completedTasks}")
                         Text("${strings.remindersToday}: ${day.reminders}")
+                        val selectedLocalDate = LocalDate.parse(day.date)
+                        stats.focusSessions
+                            .filter { Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate() == selectedLocalDate }
+                            .forEach { session ->
+                                Text(
+                                    "Focus ${session.actualFocusSeconds / 60} min - ${session.status}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        stats.completedTaskDetails
+                            .filter { Instant.ofEpochMilli(it.completedAt).atZone(ZoneId.systemDefault()).toLocalDate() == selectedLocalDate }
+                            .forEach { task -> Text(task.title, style = MaterialTheme.typography.bodySmall) }
+                        stats.reminderEvents
+                            .filter { Instant.ofEpochMilli(it.firedAt).atZone(ZoneId.systemDefault()).toLocalDate() == selectedLocalDate }
+                            .forEach { event ->
+                                Text("${event.title} - ${event.deliveryResult}", style = MaterialTheme.typography.bodySmall)
+                            }
                     }
                 }
             },
@@ -2019,7 +2067,8 @@ private fun ActivityLineChart(
     }
     Text("0 - ${maxValue.roundToInt()}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        days.forEach { day ->
+        val labelDays = if (days.size > 7) listOf(days.first(), days.last()) else days
+        labelDays.forEach { day ->
             Text(
                 LocalDate.parse(day.date).let { if (days.size > 7) it.dayOfMonth.toString() else it.dayOfWeek.name.take(3) },
                 style = MaterialTheme.typography.labelSmall,
@@ -2364,6 +2413,7 @@ private fun SettingsScreen(
         AccentSelector(
             selected = settings.accentKey,
             strings = strings,
+            languageCode = settings.languageCode,
             onSelected = settingsViewModel::updateAccentKey,
         )
     }
@@ -2576,10 +2626,15 @@ private fun SoundDropdownRow(
 private fun AccentSelector(
     selected: String,
     strings: AppStrings,
+    languageCode: String,
     onSelected: (String) -> Unit,
 ) {
-    var hue by remember(selected) { mutableStateOf(hueFromAccent(selected)) }
-    val previewColor = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.45f, 0.62f)))
+    var hsv by remember(selected) { mutableStateOf(hsvFromAccent(selected)) }
+    val previewColor = Color(android.graphics.Color.HSVToColor(hsv))
+    fun update(next: FloatArray) {
+        hsv = next
+        onSelected(hexFromHsv(next))
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(strings.accent, style = MaterialTheme.typography.labelLarge)
         Surface(
@@ -2603,12 +2658,17 @@ private fun AccentSelector(
             }
         }
         Slider(
-            value = hue,
+            value = hsv[0],
             onValueChange = {
-                hue = it
-                onSelected(hexFromHue(it))
+                update(hsv.copyOf().also { values -> values[0] = it })
             },
             valueRange = 0f..360f,
+        )
+        Text(if (languageCode == "es") "Saturación" else "Saturation", style = MaterialTheme.typography.labelMedium)
+        Slider(
+            value = hsv[1],
+            onValueChange = { update(hsv.copyOf().also { values -> values[1] = it }) },
+            valueRange = 0.2f..1f,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(
@@ -2623,7 +2683,7 @@ private fun AccentSelector(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     content = {},
                 )
-            Text(hexFromHue(hue), style = MaterialTheme.typography.bodyMedium)
+            Text(hexFromHsv(hsv), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -2679,8 +2739,28 @@ private fun SwitchRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        HealthDeskSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
+}
+
+@Composable
+private fun HealthDeskSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        colors = SwitchDefaults.colors(
+            checkedThumbColor = colors.onPrimary,
+            checkedTrackColor = colors.primary,
+            checkedBorderColor = colors.primary,
+            uncheckedThumbColor = colors.onSurface,
+            uncheckedTrackColor = colors.surfaceVariant,
+            uncheckedBorderColor = colors.outline,
+        ),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -3057,26 +3137,27 @@ private fun soundOptions(prefix: String, strings: AppStrings): List<Pair<String,
     "silent" to strings.silent,
 )
 
-private fun hueFromAccent(accent: String): Float {
+private fun hsvFromAccent(accent: String): FloatArray {
     val preset = when (accent) {
-        "mint" -> 150f
-        "amber" -> 42f
-        "clay" -> 18f
-        "sky" -> 205f
-        "lavender" -> 250f
+        "mint" -> floatArrayOf(150f, 0.55f, 1f)
+        "amber" -> floatArrayOf(42f, 0.55f, 1f)
+        "clay" -> floatArrayOf(18f, 0.55f, 1f)
+        "sky" -> floatArrayOf(205f, 0.55f, 1f)
+        "lavender" -> floatArrayOf(250f, 0.55f, 1f)
         else -> null
     }
     if (preset != null) return preset
-    if (!accent.startsWith("#")) return 130f
+    if (!accent.startsWith("#")) return floatArrayOf(130f, 0.45f, 1f)
     return runCatching {
         val hsv = FloatArray(3)
         android.graphics.Color.colorToHSV(android.graphics.Color.parseColor(accent), hsv)
-        hsv[0]
-    }.getOrDefault(130f)
+        hsv[2] = 1f
+        hsv
+    }.getOrDefault(floatArrayOf(130f, 0.45f, 1f))
 }
 
-private fun hexFromHue(hue: Float): String {
-    val color = android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.45f, 0.62f))
+private fun hexFromHsv(hsv: FloatArray): String {
+    val color = android.graphics.Color.HSVToColor(hsv)
     return "#%06X".format(0xFFFFFF and color)
 }
 

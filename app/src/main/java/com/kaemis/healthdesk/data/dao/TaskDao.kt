@@ -15,6 +15,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isCompleted = 1 ORDER BY completedAt DESC LIMIT :limit")
     fun observeCompletedTasks(limit: Int): Flow<List<TaskEntity>>
 
+    @Query("SELECT * FROM tasks WHERE isCompleted = 1 AND completedAt >= :fromEpochMillis ORDER BY completedAt DESC")
+    fun observeCompletedTasksFrom(fromEpochMillis: Long): Flow<List<TaskEntity>>
+
     @Query("SELECT * FROM tasks ORDER BY sortOrder ASC, createdAt DESC")
     suspend fun getAll(): List<TaskEntity>
 

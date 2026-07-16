@@ -31,6 +31,7 @@ class FocusForegroundService : Service() {
                     remainingLabel = intent?.getStringExtra(EXTRA_REMAINING_LABEL) ?: "--:--",
                     isAlarm = intent?.getBooleanExtra(EXTRA_IS_ALARM, false) ?: false,
                     isPaused = intent?.getBooleanExtra(EXTRA_IS_PAUSED, false) ?: false,
+                    isRestAlarm = intent?.getBooleanExtra(EXTRA_IS_REST_ALARM, false) ?: false,
                 ),
             )
         }
@@ -44,6 +45,7 @@ class FocusForegroundService : Service() {
         remainingLabel: String,
         isAlarm: Boolean,
         isPaused: Boolean,
+        isRestAlarm: Boolean,
     ) = NotificationCompat.Builder(
         this,
         if (isAlarm) {
@@ -62,19 +64,22 @@ class FocusForegroundService : Service() {
         .setOngoing(!isAlarm)
         .setOnlyAlertOnce(!isAlarm)
         .setContentIntent(openAppPendingIntent())
-        .addAction(
-            0,
-            if (isPaused) "Resume" else "Pause",
-            actionPendingIntent(
-                if (isPaused) FocusActionReceiver.ACTION_RESUME else FocusActionReceiver.ACTION_PAUSE,
-            ),
-        )
-        .addAction(0, "Stop", actionPendingIntent(FocusActionReceiver.ACTION_STOP))
         .apply {
             if (isAlarm) {
                 addAction(0, "Stop alarm", actionPendingIntent(FocusActionReceiver.ACTION_STOP_ALARM))
                 addAction(0, "Snooze", actionPendingIntent(FocusActionReceiver.ACTION_SNOOZE))
-                addAction(0, "Start focus", actionPendingIntent(FocusActionReceiver.ACTION_START_FOCUS))
+                if (isRestAlarm) {
+                    addAction(0, "Start focus", actionPendingIntent(FocusActionReceiver.ACTION_START_FOCUS))
+                }
+            } else {
+                addAction(
+                    0,
+                    if (isPaused) "Resume" else "Pause",
+                    actionPendingIntent(
+                        if (isPaused) FocusActionReceiver.ACTION_RESUME else FocusActionReceiver.ACTION_PAUSE,
+                    ),
+                )
+                addAction(0, "Stop", actionPendingIntent(FocusActionReceiver.ACTION_STOP))
             }
         }
         .build()
@@ -106,19 +111,22 @@ class FocusForegroundService : Service() {
         const val EXTRA_REMAINING_LABEL = "remainingLabel"
         const val EXTRA_IS_ALARM = "isAlarm"
         const val EXTRA_IS_PAUSED = "isPaused"
+        const val EXTRA_IS_REST_ALARM = "isRestAlarm"
 
         fun updateIntent(
             context: Context,
             phaseLabel: String,
-            remainingLabel: String,
-            isAlarm: Boolean,
-            isPaused: Boolean,
+        remainingLabel: String,
+        isAlarm: Boolean,
+        isPaused: Boolean,
+        isRestAlarm: Boolean,
         ): Intent = Intent(context, FocusForegroundService::class.java)
             .setAction(ACTION_UPDATE)
             .putExtra(EXTRA_PHASE_LABEL, phaseLabel)
             .putExtra(EXTRA_REMAINING_LABEL, remainingLabel)
             .putExtra(EXTRA_IS_ALARM, isAlarm)
             .putExtra(EXTRA_IS_PAUSED, isPaused)
+            .putExtra(EXTRA_IS_REST_ALARM, isRestAlarm)
 
         fun stopIntent(context: Context): Intent = Intent(context, FocusForegroundService::class.java)
             .setAction(ACTION_STOP_SERVICE)

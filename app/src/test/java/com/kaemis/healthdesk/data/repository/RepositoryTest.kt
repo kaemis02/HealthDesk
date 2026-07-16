@@ -176,6 +176,10 @@ private class FakeTaskDao : TaskDao {
         list.filter { it.isCompleted }.sortedByDescending { it.completedAt }.take(limit)
     }
 
+    override fun observeCompletedTasksFrom(fromEpochMillis: Long): Flow<List<TaskEntity>> = tasks.map { list ->
+        list.filter { it.isCompleted && (it.completedAt ?: 0L) >= fromEpochMillis }.sortedByDescending { it.completedAt }
+    }
+
     override fun observePendingTasksByCategory(categoryId: String): Flow<List<TaskEntity>> = tasks.map { list ->
         list.filter { !it.isCompleted && it.categoryId == categoryId }
     }

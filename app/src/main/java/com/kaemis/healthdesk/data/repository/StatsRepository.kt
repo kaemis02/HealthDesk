@@ -23,9 +23,9 @@ class StatsRepository(
             .toEpochMilli()
         return combine(
             focusSessionRepository.observeSessionsFrom(monthStart),
-            taskRepository.observeCompletedTasks(limit = 200),
+            taskRepository.observeCompletedTasksFrom(monthStart),
             taskRepository.observePendingTasks(),
-            reminderRepository.observeRecentEvents(limit = 200),
+            reminderRepository.observeEventsFrom(monthStart),
         ) { focusSessions, completedTasks, pendingTasks, reminderEvents ->
             StatsCalculator.calculate(
                 focusSessions = focusSessions,

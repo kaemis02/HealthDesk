@@ -18,7 +18,7 @@ private fun healthDeskLightColors(accentKey: String): ColorScheme {
     val tertiaryContainer = blend(Color(0xFFFFF8EF), tertiary, 0.2f)
     return lightColorScheme(
         primary = primary,
-        onPrimary = readableOn(primary),
+        onPrimary = Color.White,
         primaryContainer = primaryContainer,
         onPrimaryContainer = readableOn(primaryContainer),
         secondary = secondary,
@@ -53,7 +53,7 @@ private fun healthDeskDarkColors(accentKey: String): ColorScheme {
     val tertiaryContainer = blend(surface, tertiary, 0.2f)
     return darkColorScheme(
         primary = primary,
-        onPrimary = readableOn(primary),
+        onPrimary = Color(0xFF1C1F1D),
         primaryContainer = primaryContainer,
         onPrimaryContainer = readableOn(primaryContainer),
         secondary = secondary,

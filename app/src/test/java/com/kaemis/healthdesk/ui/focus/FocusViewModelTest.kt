@@ -250,7 +250,7 @@ class FocusViewModelTest {
     }
 
     @Test
-    fun selectedCustomPomodoroUsesCustomShortAndLongRests() = runFocusTest(dispatcher) {
+    fun selectedCustomPomodoroStopsAfterRestInsteadOfStartingNextFocusAutomatically() = runFocusTest(dispatcher) {
         val viewModel = focusViewModel(
             settings = SettingsSnapshot(
                 timerMode = "custom-deep-work",
@@ -293,17 +293,8 @@ class FocusViewModelTest {
         viewModel.stopAlarm()
         runCurrent()
 
-        assertEquals(FocusPhase.FocusRunning, viewModel.state.value.phase)
-        assertEquals(2, viewModel.state.value.currentCycle)
-
-        now += 60_000L
-        advanceTimeBy(1_000L)
-        runCurrent()
-        viewModel.stopAlarm()
-        runCurrent()
-
-        assertEquals(FocusPhase.RestRunning, viewModel.state.value.phase)
-        assertEquals(120L, viewModel.state.value.remainingSeconds)
+        assertEquals(FocusPhase.Completed, viewModel.state.value.phase)
+        assertEquals("restElapsed", focusDao.latest()?.endReason)
     }
 
     @Test

@@ -4,7 +4,7 @@
     android:initialLayout="@android:layout/simple_list_item_1"
     android:minHeight="110dp"
     android:minWidth="180dp"
-    android:previewImage="@drawable/ic_launcher_foreground"
+    android:previewImage="@mipmap/ic_healthdesk_launcher"
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="2"
     android:targetCellWidth="3"

@@ -11,6 +11,9 @@ class TaskRepository(
 
     fun observeCompletedTasks(limit: Int = 12): Flow<List<TaskEntity>> = taskDao.observeCompletedTasks(limit)
 
+    fun observeCompletedTasksFrom(fromEpochMillis: Long): Flow<List<TaskEntity>> =
+        taskDao.observeCompletedTasksFrom(fromEpochMillis)
+
     fun observePendingTasksByCategory(categoryId: String): Flow<List<TaskEntity>> =
         taskDao.observePendingTasksByCategory(categoryId)
 

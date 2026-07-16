@@ -36,7 +36,23 @@ class StatsCalculatorTest {
         assertEquals(listOf("Done today", "Done yesterday"), stats.recentCompletedTasks.map { it.title })
     }
 
-    private fun focusSession(startedAt: Long, actualFocusSeconds: Long): FocusSessionEntity = FocusSessionEntity(
+    @Test
+    fun countsStoppedSessionsWhenTheyContainRealFocusTime() {
+        val today = LocalDate.of(2026, 7, 13)
+        val stats = StatsCalculator.calculate(
+            focusSessions = listOf(focusSession(at(today, 9, 0), 600, status = "stopped")),
+            completedTasks = emptyList(),
+            pendingTasks = emptyList(),
+            reminderEvents = emptyList(),
+            nowMillis = at(today, 12, 0),
+            zoneId = zoneId,
+        )
+
+        assertEquals(10, stats.focusMinutesToday)
+        assertEquals(1, stats.focusSessionsToday)
+    }
+
+    private fun focusSession(startedAt: Long, actualFocusSeconds: Long, status: String = "completed"): FocusSessionEntity = FocusSessionEntity(
         id = startedAt.toString(),
         startedAt = startedAt,
         endedAt = startedAt + actualFocusSeconds * 1000,
@@ -44,7 +60,7 @@ class StatsCalculatorTest {
         actualFocusSeconds = actualFocusSeconds,
         plannedRestMinutes = 10,
         actualRestSeconds = 0,
-        status = "completed",
+        status = status,
         endReason = "timerElapsed",
         snoozeCount = 0,
         createdAt = startedAt,

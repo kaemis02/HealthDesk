@@ -17,6 +17,9 @@ class ReminderRepository(
     fun observeRecentEvents(limit: Int = 12): Flow<List<ReminderEventEntity>> =
         reminderEventDao.observeRecentEvents(limit)
 
+    fun observeEventsFrom(fromEpochMillis: Long): Flow<List<ReminderEventEntity>> =
+        reminderEventDao.observeEventsFrom(fromEpochMillis)
+
     suspend fun getReminder(id: String): ReminderEntity? = reminderDao.getReminder(id)
 
     suspend fun saveReminder(reminder: ReminderEntity) {

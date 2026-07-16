@@ -39,6 +39,7 @@ class AndroidFocusServiceController(
                 remainingLabel = formatDuration(state.remainingSeconds),
                 isAlarm = state.phase == FocusPhase.FocusAlarm || state.phase == FocusPhase.RestAlarm,
                 isPaused = state.phase == FocusPhase.FocusPaused || state.phase == FocusPhase.RestPaused,
+                isRestAlarm = state.phase == FocusPhase.RestAlarm,
             ),
         )
     }
