@@ -40,6 +40,7 @@ class ReminderReceiver : BroadcastReceiver() {
             cancelReminder = app.appContainer.reminderAlarmScheduler::cancel,
             showNotification = { title, id -> showNotification(context, title, id) },
             feedbackController = app.appContainer.reminderFeedbackController,
+            loadWorkingHourRules = app.appContainer.workingHoursRepository::getRules,
         ).handle(reminderId)
     }
 

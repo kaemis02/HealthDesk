@@ -1,0 +1,8 @@
+HealthDesk 1.1 improves workday controls and alarm reliability.
+
+- Configure working hours independently for every day of the week.
+- Add Out of office to stop active focus sessions and pause workday alerts.
+- Add optional workday start and end alerts.
+- Silence interval reminders outside working hours or while out of office.
+- Improve Android 12+ splash behavior and alarm visibility.
+- Return to Dashboard with the system Back button and support the project on GitHub Sponsors.

@@ -30,7 +30,7 @@ class StatsCalculatorTest {
         assertEquals(1, stats.focusSessionsToday)
         assertEquals(1, stats.completedTasksToday)
         assertEquals(1, stats.remindersToday)
-        assertEquals(31, stats.dailyStats.size)
+        assertEquals(today.dayOfMonth, stats.dailyStats.size)
         assertEquals(20, stats.dailyStats.first { it.date == today.minusDays(1).toString() }.focusMinutes)
         assertEquals(50, stats.dailyStats.first { it.date == today.toString() }.focusMinutes)
         assertEquals(listOf("Done today", "Done yesterday"), stats.recentCompletedTasks.map { it.title })
@@ -50,6 +50,24 @@ class StatsCalculatorTest {
 
         assertEquals(10, stats.focusMinutesToday)
         assertEquals(1, stats.focusSessionsToday)
+    }
+
+    @Test
+    fun keepsRollingWeekAcrossMonthBoundaries() {
+        val today = LocalDate.of(2026, 8, 3)
+        val stats = StatsCalculator.calculate(
+            focusSessions = listOf(focusSession(at(today.minusDays(6), 9, 0), 600)),
+            completedTasks = emptyList(),
+            pendingTasks = emptyList(),
+            reminderEvents = emptyList(),
+            nowMillis = at(today, 12, 0),
+            zoneId = zoneId,
+        )
+
+        assertEquals(7, stats.weeklyStats.size)
+        assertEquals(today.minusDays(6).toString(), stats.weeklyStats.first().date)
+        assertEquals(10, stats.weeklyStats.first().focusMinutes)
+        assertEquals(today.toString(), stats.weeklyStats.last().date)
     }
 
     private fun focusSession(startedAt: Long, actualFocusSeconds: Long, status: String = "completed"): FocusSessionEntity = FocusSessionEntity(

@@ -6,6 +6,7 @@ data class StatsSnapshot(
     val completedTasksToday: Int = 0,
     val remindersToday: Int = 0,
     val dailyStats: List<StatsDaySnapshot> = emptyList(),
+    val weeklyStats: List<StatsDaySnapshot> = emptyList(),
     val recentCompletedTasks: List<CompletedTaskStat> = emptyList(),
     val focusSessions: List<FocusSessionStat> = emptyList(),
     val completedTaskDetails: List<CompletedTaskStat> = emptyList(),

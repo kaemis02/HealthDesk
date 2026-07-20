@@ -40,7 +40,7 @@ object DefaultData {
         workingHourRule("working-hours-tuesday", 2, true, "08:00", "18:00", 1, now),
         workingHourRule("working-hours-wednesday", 3, true, "08:00", "18:00", 2, now),
         workingHourRule("working-hours-thursday", 4, true, "08:00", "18:00", 3, now),
-        workingHourRule("working-hours-friday", 5, true, "08:00", "15:00", 4, now),
+        workingHourRule("working-hours-friday", 5, true, "08:00", "18:00", 4, now),
         workingHourRule("working-hours-saturday", 6, false, "08:00", "18:00", 5, now),
         workingHourRule("working-hours-sunday", 7, false, "08:00", "18:00", 6, now),
     )

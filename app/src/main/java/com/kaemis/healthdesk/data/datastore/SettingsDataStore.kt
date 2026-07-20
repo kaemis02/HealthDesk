@@ -30,11 +30,14 @@ data class SettingsSnapshot(
     val multiCycleCycles: Int = 3,
     val customFocusModes: List<CustomFocusMode> = emptyList(),
     val workingHoursEnabled: Boolean = true,
+    val workdayNotificationsEnabled: Boolean = true,
+    val outOfOffice: Boolean = false,
     val notificationsEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val alarmSoundKey: String = "tone1",
     val reminderSoundKey: String = "ring2",
     val taskSoundKey: String = "ring1",
+    val tutorialCompleted: Boolean = false,
 )
 
 class SettingsDataStore(
@@ -55,11 +58,14 @@ class SettingsDataStore(
             multiCycleCycles = preferences[Keys.MultiCycleCycles] ?: 3,
             customFocusModes = decodeCustomFocusModes(preferences[Keys.CustomFocusModes]),
             workingHoursEnabled = preferences[Keys.WorkingHoursEnabled] ?: true,
+            workdayNotificationsEnabled = preferences[Keys.WorkdayNotificationsEnabled] ?: true,
+            outOfOffice = preferences[Keys.OutOfOffice] ?: false,
             notificationsEnabled = preferences[Keys.NotificationsEnabled] ?: true,
             hapticsEnabled = preferences[Keys.HapticsEnabled] ?: true,
             alarmSoundKey = preferences[Keys.AlarmSoundKey] ?: "tone1",
             reminderSoundKey = preferences[Keys.ReminderSoundKey] ?: "ring2",
             taskSoundKey = preferences[Keys.TaskSoundKey] ?: "ring1",
+            tutorialCompleted = preferences[Keys.TutorialCompleted] ?: false,
         )
     }
 
@@ -141,6 +147,18 @@ class SettingsDataStore(
         }
     }
 
+    suspend fun updateWorkdayNotificationsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.WorkdayNotificationsEnabled] = enabled
+        }
+    }
+
+    suspend fun updateOutOfOffice(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.OutOfOffice] = enabled
+        }
+    }
+
     suspend fun updateNotificationsEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.NotificationsEnabled] = enabled
@@ -171,6 +189,13 @@ class SettingsDataStore(
         }
     }
 
+    /** UI-only state; onboarding completion is never included in portable backups. */
+    suspend fun updateTutorialCompleted(completed: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.TutorialCompleted] = completed
+        }
+    }
+
     suspend fun replaceWith(snapshot: SettingsSnapshot) {
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.ThemeMode] = snapshot.themeMode
@@ -186,6 +211,8 @@ class SettingsDataStore(
             preferences[Keys.MultiCycleCycles] = snapshot.multiCycleCycles.coerceAtLeast(1)
             preferences[Keys.CustomFocusModes] = settingsJson.encodeToString(snapshot.customFocusModes)
             preferences[Keys.WorkingHoursEnabled] = snapshot.workingHoursEnabled
+            preferences[Keys.WorkdayNotificationsEnabled] = snapshot.workdayNotificationsEnabled
+            preferences[Keys.OutOfOffice] = snapshot.outOfOffice
             preferences[Keys.NotificationsEnabled] = snapshot.notificationsEnabled
             preferences[Keys.HapticsEnabled] = snapshot.hapticsEnabled
             preferences[Keys.AlarmSoundKey] = snapshot.alarmSoundKey
@@ -214,11 +241,14 @@ class SettingsDataStore(
         val MultiCycleCycles = intPreferencesKey("multiCycleCycles")
         val CustomFocusModes = stringPreferencesKey("customFocusModes")
         val WorkingHoursEnabled = booleanPreferencesKey("workingHoursEnabled")
+        val WorkdayNotificationsEnabled = booleanPreferencesKey("workdayNotificationsEnabled")
+        val OutOfOffice = booleanPreferencesKey("outOfOffice")
         val NotificationsEnabled = booleanPreferencesKey("notificationsEnabled")
         val HapticsEnabled = booleanPreferencesKey("hapticsEnabled")
         val AlarmSoundKey = stringPreferencesKey("alarmSoundKey")
         val ReminderSoundKey = stringPreferencesKey("reminderSoundKey")
         val TaskSoundKey = stringPreferencesKey("taskSoundKey")
+        val TutorialCompleted = booleanPreferencesKey("tutorialCompleted")
     }
 
     private fun decodeCustomFocusModes(raw: String?): List<CustomFocusMode> = raw?.let {

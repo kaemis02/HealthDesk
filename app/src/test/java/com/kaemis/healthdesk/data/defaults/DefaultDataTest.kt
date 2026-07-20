@@ -16,13 +16,13 @@ class DefaultDataTest {
     }
 
     @Test
-    fun workingHoursDefaultToWeekdaysWithShortFriday() {
+    fun workingHoursDefaultToOneWeekdayBaseScheduleWithoutExceptions() {
         val rules = DefaultData.workingHourRules(now = 1000L)
 
         assertEquals(7, rules.size)
         assertTrue(rules.first { it.dayOfWeek == 1 }.isEnabled)
         assertEquals("18:00", rules.first { it.dayOfWeek == 4 }.endLocalTime)
-        assertEquals("15:00", rules.first { it.dayOfWeek == 5 }.endLocalTime)
+        assertEquals("18:00", rules.first { it.dayOfWeek == 5 }.endLocalTime)
         assertFalse(rules.first { it.dayOfWeek == 6 }.isEnabled)
         assertFalse(rules.first { it.dayOfWeek == 7 }.isEnabled)
     }

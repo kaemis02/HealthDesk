@@ -21,6 +21,7 @@ class SystemResyncReceiver : BroadcastReceiver() {
                     try {
                         val app = context.applicationContext as? HealthDeskApplication
                         app?.appContainer?.resyncReminderAlarms()
+                        app?.appContainer?.resyncWorkdayAlarms()
                     } finally {
                         pendingResult.finish()
                     }

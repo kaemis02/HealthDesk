@@ -48,6 +48,8 @@ data class BackupSettings(
     val multiCycleCycles: Int = 3,
     val customFocusModes: List<BackupCustomFocusMode> = emptyList(),
     val workingHoursEnabled: Boolean,
+    val workdayNotificationsEnabled: Boolean = true,
+    val outOfOffice: Boolean = false,
     val notificationsEnabled: Boolean,
     val hapticsEnabled: Boolean,
     val alarmSoundKey: String,

@@ -21,6 +21,7 @@ class SettingsViewModel(
     private val settingsDataStore: SettingsDataStore,
     private val workingHoursRepository: WorkingHoursRepository,
     private val resetLocalDataAction: suspend () -> Unit,
+    private val resyncWorkdayAlarms: suspend () -> Unit = {},
 ) : ViewModel() {
     val settings: StateFlow<SettingsSnapshot> = settingsDataStore.settings.stateIn(
         scope = viewModelScope,
@@ -152,24 +153,22 @@ class SettingsViewModel(
 
     fun updateWorkingHoursEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsDataStore.updateWorkingHoursEnabled(enabled)
+        resyncWorkdayAlarms()
+    }
+
+    fun updateWorkdayNotificationsEnabled(enabled: Boolean) = viewModelScope.launch {
+        settingsDataStore.updateWorkdayNotificationsEnabled(enabled)
+        resyncWorkdayAlarms()
+    }
+
+    fun updateOutOfOffice(enabled: Boolean) = viewModelScope.launch {
+        settingsDataStore.updateOutOfOffice(enabled)
+        resyncWorkdayAlarms()
     }
 
     fun saveWorkingHourRule(rule: WorkingHourRuleEntity) = viewModelScope.launch {
         workingHoursRepository.saveRule(rule)
-    }
-
-    fun updateWorkingHoursStartTime(time: String) = viewModelScope.launch {
-        val now = System.currentTimeMillis()
-        val rules = workingHoursRepository.getRules()
-        if (rules.isEmpty()) return@launch
-        workingHoursRepository.saveRules(rules.map { it.copy(startLocalTime = time, updatedAt = now) })
-    }
-
-    fun updateWorkingHoursEndTime(time: String) = viewModelScope.launch {
-        val now = System.currentTimeMillis()
-        val rules = workingHoursRepository.getRules()
-        if (rules.isEmpty()) return@launch
-        workingHoursRepository.saveRules(rules.map { it.copy(endLocalTime = time, updatedAt = now) })
+        resyncWorkdayAlarms()
     }
 
     fun updateNotificationsEnabled(enabled: Boolean) = viewModelScope.launch {
@@ -192,6 +191,10 @@ class SettingsViewModel(
         settingsDataStore.updateTaskSoundKey(soundKey)
     }
 
+    fun updateTutorialCompleted(completed: Boolean) = viewModelScope.launch {
+        settingsDataStore.updateTutorialCompleted(completed)
+    }
+
     fun resetLocalData() = viewModelScope.launch {
         resetLocalDataAction.invoke()
     }
@@ -211,11 +214,12 @@ class SettingsViewModel(
             settingsDataStore: SettingsDataStore,
             workingHoursRepository: WorkingHoursRepository,
             resetLocalData: suspend () -> Unit,
+            resyncWorkdayAlarms: suspend () -> Unit = {},
         ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    SettingsViewModel(settingsDataStore, workingHoursRepository, resetLocalData) as T
+                    SettingsViewModel(settingsDataStore, workingHoursRepository, resetLocalData, resyncWorkdayAlarms) as T
             }
     }
 }

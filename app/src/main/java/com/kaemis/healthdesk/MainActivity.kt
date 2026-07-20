@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -19,6 +20,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -102,6 +104,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
@@ -124,6 +127,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import com.kaemis.healthdesk.data.datastore.SettingsSnapshot
 import com.kaemis.healthdesk.data.backup.BackupImportSummary
@@ -174,6 +178,7 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         val appContainer = (application as HealthDeskApplication).appContainer
 
@@ -183,6 +188,7 @@ class MainActivity : ComponentActivity() {
                     settingsDataStore = appContainer.settingsDataStore,
                     workingHoursRepository = appContainer.workingHoursRepository,
                     resetLocalData = appContainer::resetLocalData,
+                    resyncWorkdayAlarms = appContainer::resyncWorkdayAlarms,
                 ),
             )
             val settings by settingsViewModel.settings.collectAsState()
@@ -301,6 +307,15 @@ private fun HealthDeskApp(
     val tasksState by tasksViewModel.state.collectAsState()
     val stats by statsViewModel.stats.collectAsState()
     val strings = stringsFor(settings.languageCode)
+    var showTutorial by remember { mutableStateOf(!settings.tutorialCompleted) }
+
+    BackHandler(enabled = drawerState.isOpen || selectedDestination != AppDestination.Dashboard) {
+        if (drawerState.isOpen) {
+            scope.launch { drawerState.close() }
+        } else {
+            selectedDestination = AppDestination.Dashboard
+        }
+    }
 
     LaunchedEffect(
         profile.displayName,
@@ -312,8 +327,8 @@ private fun HealthDeskApp(
         HealthDeskWidgetUpdater.updateAll(context)
     }
 
-    LaunchedEffect(settings.notificationsEnabled) {
-        if (settings.notificationsEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+    LaunchedEffect(settings.notificationsEnabled, settings.tutorialCompleted) {
+        if (settings.tutorialCompleted && settings.notificationsEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
             if (!granted) {
                 requestNotificationsPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -379,11 +394,71 @@ private fun HealthDeskApp(
                     backupService = backupService,
                     importNativeBackup = importNativeBackup,
                     onDestinationSelected = { selectedDestination = it },
+                    onShowTutorial = { showTutorial = true },
                 )
             }
         }
     }
+    if (showTutorial) {
+        FirstRunTutorialDialog(
+            strings = strings,
+            onFinish = {
+                selectedDestination = AppDestination.Dashboard
+                showTutorial = false
+                settingsViewModel.updateTutorialCompleted(true)
+            },
+            onDestinationSelected = { selectedDestination = it },
+        )
+    }
 }
+
+@Composable
+private fun FirstRunTutorialDialog(
+    strings: AppStrings,
+    onFinish: () -> Unit,
+    onDestinationSelected: (AppDestination) -> Unit,
+) {
+    var page by remember { mutableStateOf(0) }
+    val pages = listOf(
+        TutorialPage(AppDestination.Dashboard, Icons.Outlined.Home, strings.tutorialWelcomeTitle, strings.tutorialWelcomeBody),
+        TutorialPage(AppDestination.Dashboard, Icons.Outlined.Schedule, strings.tutorialFocusTitle, strings.tutorialFocusBody),
+        TutorialPage(AppDestination.Reminders, Icons.Outlined.Notifications, strings.tutorialRemindersTitle, strings.tutorialRemindersBody),
+        TutorialPage(AppDestination.Tasks, Icons.Outlined.TaskAlt, strings.tutorialTasksTitle, strings.tutorialTasksBody),
+        TutorialPage(AppDestination.Stats, Icons.Outlined.Insights, strings.tutorialStatsTitle, strings.tutorialStatsBody),
+        TutorialPage(AppDestination.Settings, Icons.Outlined.Schedule, strings.tutorialWorkingHoursTitle, strings.tutorialWorkingHoursBody),
+        TutorialPage(AppDestination.Settings, Icons.Outlined.Settings, strings.tutorialDataTitle, strings.tutorialDataBody),
+    )
+    val currentPage = pages[page]
+    LaunchedEffect(page) { onDestinationSelected(currentPage.destination) }
+    AlertDialog(
+        onDismissRequest = onFinish,
+        title = { Text(currentPage.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(currentPage.icon, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(strings.tutorialStep(page + 1, pages.size), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(currentPage.body)
+            }
+        },
+        confirmButton = {
+            if (page == pages.lastIndex) TextButton(onClick = onFinish) { Text(strings.done) }
+            else TextButton(onClick = { page += 1 }) { Text(strings.next) }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (page > 0) TextButton(onClick = { page -= 1 }) { Text(strings.back) }
+                TextButton(onClick = onFinish) { Text(if (page == pages.lastIndex) strings.done else strings.skip) }
+            }
+        },
+    )
+}
+
+private data class TutorialPage(
+    val destination: AppDestination,
+    val icon: ImageVector,
+    val title: String,
+    val body: String,
+)
 
 @Composable
 private fun HealthDeskDrawer(
@@ -414,10 +489,10 @@ private fun HealthDeskDrawer(
         }
         Spacer(modifier = Modifier.weight(1f, fill = true))
         TextButton(
-            onClick = { openExternalLink(context, "https://buymeacoffee.com/kaemis") },
+            onClick = { openExternalLink(context, "https://github.com/sponsors/kaemis02") },
             modifier = Modifier.padding(16.dp),
         ) {
-            Text(strings.buyMeACoffee)
+            Text(strings.supportOnGitHub)
         }
     }
     if (showProfileEditor) {
@@ -481,12 +556,15 @@ private fun DestinationContent(
     backupService: BackupService,
     importNativeBackup: suspend (NativeBackupPayload) -> BackupImportSummary,
     onDestinationSelected: (AppDestination) -> Unit,
+    onShowTutorial: () -> Unit,
 ) {
     val screenScrollState = rememberScrollState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val availableHeight = maxHeight
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
             .then(
                 if (destination == AppDestination.Dashboard || destination == AppDestination.Tasks) {
                     Modifier
@@ -495,9 +573,9 @@ private fun DestinationContent(
                 },
             )
             .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(if (destination == AppDestination.Dashboard) 10.dp else 16.dp),
-    ) {
-        when (destination) {
+            verticalArrangement = Arrangement.spacedBy(if (destination == AppDestination.Dashboard) 10.dp else 16.dp),
+        ) {
+            when (destination) {
             AppDestination.Dashboard -> DashboardScreen(
                 profile = profile,
                 settings = settings,
@@ -505,12 +583,12 @@ private fun DestinationContent(
                 workingHourRules = workingHourRules,
                 reminders = reminders,
                 tasksState = tasksState,
-                stats = stats,
                 strings = strings,
                 focusViewModel = focusViewModel,
                 settingsViewModel = settingsViewModel,
                 onOpenReminders = { onDestinationSelected(AppDestination.Reminders) },
                 onOpenTasks = { onDestinationSelected(AppDestination.Tasks) },
+                availableHeight = availableHeight,
             )
             AppDestination.Reminders -> RemindersScreen(reminders, settings, strings, remindersViewModel)
             AppDestination.Tasks -> TasksScreen(tasksState, strings, tasksViewModel)
@@ -524,7 +602,9 @@ private fun DestinationContent(
                 backupService,
                 importNativeBackup,
                 strings,
+                onShowTutorial,
             )
+            }
         }
     }
 }
@@ -537,16 +617,19 @@ private fun DashboardScreen(
     workingHourRules: List<WorkingHourRuleEntity>,
     reminders: List<ReminderEntity>,
     tasksState: TasksUiState,
-    stats: LocalStatsSnapshot,
     strings: AppStrings,
     focusViewModel: FocusViewModel,
     settingsViewModel: SettingsViewModel,
     onOpenReminders: () -> Unit,
     onOpenTasks: () -> Unit,
+    availableHeight: Dp,
 ) {
-    FocusCard(settings, focusState, workingHourRules, stats, strings, focusViewModel, settingsViewModel)
-    DashboardReminderSummary(reminders, strings, onOpenReminders)
-    DashboardTaskSummary(tasksState.pendingTasks, strings, onOpenTasks)
+    val showSummaries = availableHeight >= 560.dp
+    val showTasks = availableHeight >= 740.dp
+    val compactFocus = availableHeight < 740.dp
+    FocusCard(settings, focusState, workingHourRules, strings, focusViewModel, settingsViewModel, compact = compactFocus, ultraCompact = !showSummaries)
+    if (showSummaries) DashboardReminderSummary(reminders, strings, onOpenReminders)
+    if (showTasks) DashboardTaskSummary(tasksState.pendingTasks, strings, onOpenTasks)
 }
 
 @Composable
@@ -554,13 +637,13 @@ private fun FocusCard(
     settings: SettingsSnapshot,
     state: FocusUiState,
     workingHourRules: List<WorkingHourRuleEntity>,
-    stats: LocalStatsSnapshot,
     strings: AppStrings,
     focusViewModel: FocusViewModel,
     settingsViewModel: SettingsViewModel,
+    compact: Boolean = false,
+    ultraCompact: Boolean = false,
 ) {
     var showEditor by remember { mutableStateOf(false) }
-    var showStats by remember { mutableStateOf(false) }
     var completedModeName by remember { mutableStateOf<String?>(null) }
     var showNewCustomModeDialog by remember { mutableStateOf(false) }
     var newCustomModeName by remember { mutableStateOf("") }
@@ -568,7 +651,6 @@ private fun FocusCard(
     val alarmActive = state.phase == FocusPhase.FocusAlarm || state.phase == FocusPhase.RestAlarm
     val idleLike = state.phase == FocusPhase.Idle || state.phase == FocusPhase.Completed || state.phase == FocusPhase.Stopped
     val displaySeconds = if (idleLike) selectedMode.workMinutes.toLong() * 60L else state.remainingSeconds
-    val insideWorkingHours = !settings.workingHoursEnabled || workingHourRules.isEmpty() || WorkingHoursEvaluator.isWithinWorkingHours(workingHourRules, System.currentTimeMillis())
 
     LaunchedEffect(focusViewModel) {
         focusViewModel.completionEvents.collect { event -> completedModeName = event.modeName }
@@ -615,54 +697,68 @@ private fun FocusCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = strings.focusSession,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = strings.modeSubtitle(focusModeTitle(selectedMode, strings)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(imageVector = Icons.Outlined.Schedule, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(text = strings.focusSession, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(text = strings.modeSubtitle(focusModeTitle(selectedMode, strings)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 IconButton(onClick = { showEditor = true }) {
                     Icon(Icons.Outlined.Settings, contentDescription = strings.edit)
                 }
             }
 
-            if (shouldShowStatusPill(state.phase)) {
-                StatusPill(focusStatusLabel(state.phase, strings))
-            }
-
-            if (settings.workingHoursEnabled && insideWorkingHours) {
-                CompactChip(workingHoursStatusText(settings.languageCode, insideWorkingHours))
+            if (!ultraCompact && state.totalCycles > 1) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    repeat(state.totalCycles) { index ->
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 3.dp)
+                                .size(if (index + 1 == state.currentCycle) 8.dp else 6.dp)
+                                .clip(CircleShape)
+                                .then(
+                                    Modifier.semantics {
+                                        contentDescription = "Cycle ${index + 1} of ${state.totalCycles}"
+                                    },
+                                ),
+                        ) {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                shape = CircleShape,
+                                color = if (index < state.currentCycle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                            ) {}
+                        }
+                    }
+                }
             }
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp)
+                    .height(if (ultraCompact) 190.dp else if (compact) 230.dp else 300.dp)
                     .semantics {
                         contentDescription = "${focusStatusLabel(state.phase, strings)}, ${formatDuration(displaySeconds)}"
-                        role = Role.Button
                     }
-                    .clickable {
+                    .then(
                         if (alarmActive) {
-                            focusViewModel.stopAlarm()
+                            Modifier
+                                .semantics { role = Role.Button }
+                                .clickable(onClick = focusViewModel::stopAlarm)
                         } else {
-                            showStats = true
-                        }
-                    },
+                            Modifier
+                        },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(
                     progress = { if (idleLike) 0f else progressFor(state) },
-                    modifier = Modifier.size(250.dp),
+                    modifier = Modifier.size(if (ultraCompact) 150.dp else if (compact) 190.dp else 250.dp),
                     strokeWidth = 14.dp,
                 )
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -674,11 +770,7 @@ private fun FocusCard(
                 }
             }
 
-            Text(
-                text = focusCaption(state.phase, alarmActive, settings.languageCode),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (!ultraCompact) Text(text = focusCaption(state.phase, alarmActive, settings.languageCode), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -696,36 +788,14 @@ private fun FocusCard(
                 }
                 if (showPauseResumeButton(state.phase) && !alarmActive) {
                     OutlinedButton(
-                        onClick = if (state.phase == FocusPhase.FocusPaused || state.phase == FocusPhase.RestPaused) {
-                            focusViewModel::resume
-                        } else {
-                            focusViewModel::pause
-                        },
+                        onClick = if (state.phase == FocusPhase.FocusPaused || state.phase == FocusPhase.RestPaused) focusViewModel::next else focusViewModel::pause,
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(if (state.phase == FocusPhase.FocusPaused || state.phase == FocusPhase.RestPaused) strings.resume else strings.pause)
+                        Text(if (state.phase == FocusPhase.FocusPaused || state.phase == FocusPhase.RestPaused) strings.next else strings.pause)
                     }
                 }
             }
         }
-    }
-
-    if (showStats) {
-        AlertDialog(
-            onDismissRequest = { showStats = false },
-            title = { Text(strings.sessionStats) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("${strings.focusMinutesToday}: ${stats.focusMinutesToday}")
-                    Text("${strings.completedTasks}: ${stats.completedTasksToday}")
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showStats = false }) {
-                    Text(strings.done)
-                }
-            },
-        )
     }
 
     if (showEditor) {
@@ -1030,14 +1100,23 @@ private fun DashboardReminderSummary(
 ) {
     SectionCard(
         title = strings.reminders,
+        icon = Icons.Outlined.Notifications,
         modifier = Modifier.clickable(onClick = onClick),
     ) {
-        val upcoming = reminders.filter { it.isEnabled }.sortedBy { it.nextScheduledAt ?: Long.MAX_VALUE }.take(4)
+        val water = reminders.firstOrNull { it.id == "reminder-water-built-in" && it.isEnabled }
+        val custom = reminders.filter { it.isEnabled && it.id != "reminder-water-built-in" }
+            .sortedBy { it.nextScheduledAt ?: Long.MAX_VALUE }
+            .take(3)
+        val upcoming = listOfNotNull(water) + custom
         if (upcoming.isEmpty()) {
             Text(strings.noRemindersDashboard)
         } else {
             upcoming.forEach { reminder ->
-                Text("${reminder.title}  ${reminder.nextScheduledAt?.let(::formatReminderTime).orEmpty()}")
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(reminderIcon(reminder.iconKey), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(reminder.title, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(reminder.nextScheduledAt?.let(::formatReminderTime).orEmpty(), maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
@@ -1051,12 +1130,18 @@ private fun DashboardTaskSummary(
 ) {
     SectionCard(
         title = strings.tasks,
+        icon = Icons.Outlined.TaskAlt,
         modifier = Modifier.clickable(onClick = onClick),
     ) {
         if (tasks.isEmpty()) {
             Text(strings.noTasksDashboard)
         } else {
-            tasks.take(3).forEach { task -> Text(task.title) }
+            tasks.take(3).forEach { task ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(task.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
         }
     }
 }
@@ -1172,7 +1257,7 @@ private fun FocusPrimaryButton(
         -> strings.stop to focusViewModel::stop
         FocusPhase.FocusPaused,
         FocusPhase.RestPaused,
-        -> strings.start to focusViewModel::start
+        -> strings.resume to focusViewModel::resume
         FocusPhase.FocusAlarm,
         FocusPhase.RestAlarm,
         -> strings.stopAlarm to focusViewModel::stopAlarm
@@ -1724,6 +1809,7 @@ private fun TaskCard(
             alpha = if (dragAmount == 0f) 1f else 0.96f
         },
     ) {
+        IconBubble(icon = Icons.Outlined.TaskAlt, active = true)
         Checkbox(
             checked = false,
             onCheckedChange = { tasksViewModel.completeTask(task) },
@@ -1874,14 +1960,14 @@ private fun StatsScreen(
     strings: AppStrings,
 ) {
     val allDays = stats.dailyStats
-    val today = allDays.lastOrNull()
+    val today = allDays.firstOrNull { it.date == LocalDate.now().toString() }
     var showCalendar by remember { mutableStateOf(false) }
     var chartRange by remember { mutableStateOf("week") }
     var visibleSeries by remember { mutableStateOf(setOf("focus", "tasks", "reminders")) }
-    val selectedDate = remember(allDays) { mutableStateOf(allDays.lastOrNull()?.date ?: LocalDate.now().toString()) }
+    val selectedDate = remember(allDays) { mutableStateOf(today?.date ?: LocalDate.now().toString()) }
     val selectedDay = allDays.firstOrNull { it.date == selectedDate.value } ?: allDays.lastOrNull()
     val chartDays = remember(allDays, chartRange) {
-        if (chartRange == "week") allDays.takeLast(7) else allDays
+        if (chartRange == "week") stats.weeklyStats else allDays
     }
 
     Row(
@@ -2059,8 +2145,17 @@ private fun ActivityLineChart(
         )
         series.filter { it.first in visibleSeries }.forEach { (_, pointsAndColor) ->
             val (points, color) = pointsAndColor
-            for (index in 0 until points.lastIndex) {
-                drawLine(color, points[index], points[index + 1], strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
+            if (points.size > 1) {
+                val path = Path().apply {
+                    moveTo(points.first().x, points.first().y)
+                    for (index in 0 until points.lastIndex) {
+                        val start = points[index]
+                        val end = points[index + 1]
+                        val controlX = (start.x + end.x) / 2f
+                        cubicTo(controlX, start.y, controlX, end.y, end.x, end.y)
+                    }
+                }
+                drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round))
             }
             points.forEach { drawCircle(color, radius = 3.dp.toPx(), center = it) }
         }
@@ -2314,10 +2409,12 @@ private fun SettingsScreen(
     backupService: BackupService,
     importNativeBackup: suspend (NativeBackupPayload) -> BackupImportSummary,
     strings: AppStrings,
+    onShowTutorial: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showResetConfirmation by remember { mutableStateOf(false) }
+    var showWorkingHoursEditor by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<NativeBackupPayload?>(null) }
     var showBackupError by remember { mutableStateOf(false) }
     val createBackupDocument = rememberLauncherForActivityResult(
@@ -2326,8 +2423,8 @@ private fun SettingsScreen(
         if (uri != null) {
             scope.launch {
                 val backupJson = backupService.exportNativeBackup(
-                    appVersionName = "1.0.0",
-                    appVersionCode = 1,
+                    appVersionName = "1.1.0",
+                    appVersionCode = 2,
                 )
                 context.contentResolver.openOutputStream(uri)?.use { output ->
                     output.write(backupJson.toByteArray())
@@ -2349,33 +2446,23 @@ private fun SettingsScreen(
         }
     }
 
-    val startRule = workingHourRules.firstOrNull { it.isEnabled } ?: workingHourRules.firstOrNull()
-    val endRule = workingHourRules.firstOrNull { it.isEnabled } ?: workingHourRules.lastOrNull()
-
     SectionCard(title = strings.workingHours) {
         SwitchRow(strings.useWorkingHours, settings.workingHoursEnabled, settingsViewModel::updateWorkingHoursEnabled)
+        val activeRules = workingHourRules.filter { it.isEnabled }
         Text(
-            text = if (settings.workingHoursEnabled) strings.workingHoursEnabled else strings.workingHoursOff,
+            text = activeRules.firstOrNull()?.let { "${it.startLocalTime} - ${it.endLocalTime}" } ?: strings.workingHoursOff,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        TimePickerFieldRow(
-            label = strings.startTime,
-            value = startRule?.startLocalTime ?: "08:00",
+        OutlinedButton(
             enabled = settings.workingHoursEnabled,
-            strings = strings,
-            onValueChange = settingsViewModel::updateWorkingHoursStartTime,
-        )
-        TimePickerFieldRow(
-            label = strings.endTime,
-            value = endRule?.endLocalTime ?: "18:00",
-            enabled = settings.workingHoursEnabled,
-            strings = strings,
-            onValueChange = settingsViewModel::updateWorkingHoursEndTime,
-        )
+            onClick = { showWorkingHoursEditor = true },
+        ) { Text(strings.edit) }
+        SwitchRow(strings.outOfOffice, settings.outOfOffice, settingsViewModel::updateOutOfOffice)
     }
 
     SectionCard(title = strings.notifications) {
         SwitchRow(strings.appNotifications, settings.notificationsEnabled, settingsViewModel::updateNotificationsEnabled)
+        SwitchRow(strings.workdayNotifications, settings.workdayNotificationsEnabled, settingsViewModel::updateWorkdayNotificationsEnabled)
     }
 
     SectionCard(title = strings.soundAndVibration) {
@@ -2445,6 +2532,7 @@ private fun SettingsScreen(
     SectionCard(title = strings.aboutAndSupport) {
         Text(strings.versionText)
         Text(strings.licenseText)
+        OutlinedButton(onClick = onShowTutorial) { Text(strings.tutorial) }
     }
 
     if (showResetConfirmation) {
@@ -2507,6 +2595,147 @@ private fun SettingsScreen(
             },
         )
     }
+    if (showWorkingHoursEditor) {
+        WorkingHoursEditorDialog(
+            rules = workingHourRules,
+            strings = strings,
+            languageCode = settings.languageCode,
+            onSaveRule = settingsViewModel::saveWorkingHourRule,
+            onDismiss = { showWorkingHoursEditor = false },
+        )
+    }
+}
+
+@Composable
+private fun WorkingHoursEditorDialog(
+    rules: List<WorkingHourRuleEntity>,
+    strings: AppStrings,
+    languageCode: String,
+    onSaveRule: (WorkingHourRuleEntity) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val baseRule = rules.firstOrNull { it.dayOfWeek == 1 }
+    var baseStart by remember(baseRule) { mutableStateOf(baseRule?.startLocalTime ?: "08:00") }
+    var baseEnd by remember(baseRule) { mutableStateOf(baseRule?.endLocalTime ?: "18:00") }
+    var exceptionDay by remember { mutableStateOf<Int?>(null) }
+    var editingException by remember { mutableStateOf(false) }
+    val locale = localeForLanguage(languageCode)
+    val exceptions = rules.filter { it.isWorkingHoursException(baseStart, baseEnd) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(strings.workingHours) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(strings.baseSchedule, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                TimePickerFieldRow(strings.startTime, baseStart, true, strings) { baseStart = it }
+                TimePickerFieldRow(strings.endTime, baseEnd, true, strings) { baseEnd = it }
+                OutlinedButton(onClick = {
+                    val previousBaseStart = baseRule?.startLocalTime ?: baseStart
+                    val previousBaseEnd = baseRule?.endLocalTime ?: baseEnd
+                    rules.filter { it.dayOfWeek in 1..5 }.forEach { rule ->
+                        if (rule.dayOfWeek == 1 || !rule.isWorkingHoursException(previousBaseStart, previousBaseEnd)) {
+                            onSaveRule(rule.copy(isEnabled = true, startLocalTime = baseStart, endLocalTime = baseEnd, updatedAt = System.currentTimeMillis()))
+                        }
+                    }
+                }) { Text(strings.applyToWeekdays) }
+                Text(strings.exceptions, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                OutlinedButton(onClick = { editingException = false; exceptionDay = 2 }) { Text(strings.createException) }
+                if (exceptions.isEmpty()) Text(strings.noExceptions, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                exceptions.sortedBy { it.dayOfWeek }.forEach { rule ->
+                    val label = java.time.DayOfWeek.of(rule.dayOfWeek).getDisplayName(TextStyle.SHORT, locale)
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, modifier = Modifier.width(48.dp), style = MaterialTheme.typography.labelLarge)
+                        TextButton(onClick = { editingException = true; exceptionDay = rule.dayOfWeek }, modifier = Modifier.weight(1f)) {
+                            Text(if (rule.isEnabled) "${rule.startLocalTime} - ${rule.endLocalTime}" else strings.disabled, maxLines = 1)
+                        }
+                        TextButton(onClick = {
+                            val restored = if (rule.dayOfWeek in 1..5) {
+                                rule.copy(isEnabled = true, startLocalTime = baseStart, endLocalTime = baseEnd, updatedAt = System.currentTimeMillis())
+                            } else {
+                                rule.copy(isEnabled = false, updatedAt = System.currentTimeMillis())
+                            }
+                            onSaveRule(restored)
+                        }) { Text(strings.delete) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(strings.done) } },
+    )
+    exceptionDay?.let { day ->
+        rules.firstOrNull { it.dayOfWeek == day }?.let { rule ->
+            WorkingHoursExceptionDialog(
+                rule = rule,
+                rules = rules,
+                allowDaySelection = !editingException,
+                baseStart = baseStart,
+                baseEnd = baseEnd,
+                strings = strings,
+                languageCode = languageCode,
+                onSave = onSaveRule,
+                onDismiss = { exceptionDay = null },
+            )
+        }
+    }
+}
+
+private fun WorkingHourRuleEntity.isWorkingHoursException(baseStart: String, baseEnd: String): Boolean = when (dayOfWeek) {
+    in 1..5 -> !isEnabled || startLocalTime != baseStart || endLocalTime != baseEnd
+    else -> isEnabled
+}
+
+@Composable
+private fun WorkingHoursExceptionDialog(
+    rule: WorkingHourRuleEntity,
+    rules: List<WorkingHourRuleEntity>,
+    allowDaySelection: Boolean,
+    baseStart: String,
+    baseEnd: String,
+    strings: AppStrings,
+    languageCode: String,
+    onSave: (WorkingHourRuleEntity) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var day by remember(rule) { mutableStateOf(rule.dayOfWeek) }
+    var enabled by remember(rule) { mutableStateOf(rule.isEnabled) }
+    var start by remember(rule) { mutableStateOf(rule.startLocalTime) }
+    var end by remember(rule) { mutableStateOf(rule.endLocalTime) }
+    val locale = localeForLanguage(languageCode)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (allowDaySelection) strings.createException else strings.editException) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (allowDaySelection) {
+                    WeekdaySelector(
+                        selected = setOf(day),
+                        days = (2..7).toList(),
+                        languageCode = languageCode,
+                        singleSelection = true,
+                        onSelected = { day = it.first() },
+                    )
+                }
+                SwitchRow(
+                    java.time.DayOfWeek.of(day).getDisplayName(TextStyle.FULL, locale),
+                    enabled,
+                    onCheckedChange = { enabled = it },
+                )
+                if (enabled) {
+                    TimePickerFieldRow(strings.startTime, start, true, strings) { start = it }
+                    TimePickerFieldRow(strings.endTime, end, true, strings) { end = it }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val targetRule = rules.firstOrNull { it.dayOfWeek == day } ?: rule
+                onSave(targetRule.copy(isEnabled = enabled, startLocalTime = if (enabled) start else baseStart, endLocalTime = if (enabled) end else baseEnd, updatedAt = System.currentTimeMillis()))
+                onDismiss()
+            }) { Text(strings.done) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(strings.cancel) } },
+    )
 }
 
 @Composable
@@ -2531,6 +2760,7 @@ private fun PlaceholderScreen(
 @Composable
 private fun SectionCard(
     title: String,
+    icon: ImageVector? = null,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -2544,11 +2774,10 @@ private fun SectionCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                icon?.let { Icon(it, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
+                Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            }
             content()
         }
     }

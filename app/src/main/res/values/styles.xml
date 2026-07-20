@@ -6,4 +6,7 @@
         <item name="android:navigationBarColor">#FBF6EE</item>
         <item name="android:statusBarColor">#FBF6EE</item>
     </style>
+    <style name="Theme.HealthDesk.Starting" parent="Theme.HealthDesk">
+        <item name="android:windowBackground">#FBF6EE</item>
+    </style>
 </resources>

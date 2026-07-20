@@ -8,4 +8,18 @@ class SettingsSnapshotTest {
     fun defaultsToSystemTheme() {
         assertEquals("system", SettingsSnapshot().themeMode)
     }
+
+    @Test
+    fun enablesWorkdayNoticesAndDisablesOutOfOfficeByDefault() {
+        val settings = SettingsSnapshot()
+
+        assertEquals(true, settings.workdayNotificationsEnabled)
+        assertEquals(false, settings.outOfOffice)
+    }
+
+    @Test
+    fun showsTutorialUntilTheUserCompletesIt() {
+        assertEquals(false, SettingsSnapshot().tutorialCompleted)
+        assertEquals(true, SettingsSnapshot(tutorialCompleted = true).tutorialCompleted)
+    }
 }

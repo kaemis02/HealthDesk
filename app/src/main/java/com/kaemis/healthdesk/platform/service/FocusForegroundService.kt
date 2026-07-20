@@ -66,6 +66,7 @@ class FocusForegroundService : Service() {
         .setContentIntent(openAppPendingIntent())
         .apply {
             if (isAlarm) {
+                setFullScreenIntent(openAppPendingIntent(), true)
                 addAction(0, "Stop alarm", actionPendingIntent(FocusActionReceiver.ACTION_STOP_ALARM))
                 addAction(0, "Snooze", actionPendingIntent(FocusActionReceiver.ACTION_SNOOZE))
                 if (isRestAlarm) {

@@ -117,6 +117,7 @@ class FocusViewModel(
     init {
         viewModelScope.launch {
             settingsFlow.collect { snapshot ->
+                val outOfOfficeWasEnabled = settings.outOfOffice
                 settings = snapshot
                 val resolvedMode = snapshot.resolveFocusMode()
                 mutableState.update {
@@ -128,6 +129,9 @@ class FocusViewModel(
                         currentCycle = currentCycle,
                         totalCycles = resolvedMode.totalCycles(),
                     )
+                }
+                if (!outOfOfficeWasEnabled && snapshot.outOfOffice) {
+                    endForOutOfOffice()
                 }
             }
         }
@@ -219,11 +223,19 @@ class FocusViewModel(
         finishSession(status = "completed", endReason = "workdayEnded", targetPhase = FocusPhase.Completed)
     }
 
+    private fun endForOutOfOffice() {
+        val phase = mutableState.value.phase
+        if (phase == FocusPhase.Idle || phase == FocusPhase.Completed || phase == FocusPhase.Stopped) return
+        updateElapsedForCurrentPhase()
+        finishSession(status = "stopped", endReason = "outOfOffice", targetPhase = FocusPhase.Stopped)
+    }
+
     fun start() {
         if (mutableState.value.phase != FocusPhase.Idle && mutableState.value.phase != FocusPhase.Completed && mutableState.value.phase != FocusPhase.Stopped) {
             resume()
             return
         }
+        if (settings.outOfOffice) return
         if (settings.workingHoursEnabled && workingHourRules.isNotEmpty() && !isInsideWorkingHours()) {
             mutableState.update { it.copy(pendingOutsideWorkingHoursConfirmation = true) }
             return
@@ -232,6 +244,7 @@ class FocusViewModel(
     }
 
     fun startConfirmed() {
+        if (settings.outOfOffice) return
         startNewSession(allowOutsideWorkingHours = true)
     }
 
@@ -281,6 +294,23 @@ class FocusViewModel(
         when (mutableState.value.phase) {
             FocusPhase.FocusPaused -> startPhase(FocusPhase.FocusRunning, mutableState.value.remainingSeconds)
             FocusPhase.RestPaused -> startPhase(FocusPhase.RestRunning, mutableState.value.remainingSeconds)
+            else -> Unit
+        }
+    }
+
+    /** Advances a paused block without treating the skipped remaining time as completed work or rest. */
+    fun next() {
+        when (mutableState.value.phase) {
+            FocusPhase.FocusPaused -> {
+                focusAlarmScheduler.cancelPhaseEnd()
+                val restMinutes = restMinutesForCurrentCycle()
+                if (restMinutes > 0) startPhase(FocusPhase.RestRunning, restMinutes * 60L)
+                else completeOrStartNextCycle(endReason = "timerElapsed")
+            }
+            FocusPhase.RestPaused -> {
+                focusAlarmScheduler.cancelPhaseEnd()
+                completeOrStartNextCycle(endReason = "restElapsed")
+            }
             else -> Unit
         }
     }

@@ -14,18 +14,17 @@ class StatsRepository(
     private val nowProvider: () -> Long = System::currentTimeMillis,
 ) {
     fun observeStats(): Flow<StatsSnapshot> {
-        val monthStart = Instant.ofEpochMilli(nowProvider())
-            .atZone(ZoneId.systemDefault())
-            .toLocalDate()
-            .withDayOfMonth(1)
+        val today = Instant.ofEpochMilli(nowProvider()).atZone(ZoneId.systemDefault()).toLocalDate()
+        val monthStart = today.withDayOfMonth(1)
+        val queryStart = minOf(monthStart, today.minusDays(6))
             .atStartOfDay(ZoneId.systemDefault())
             .toInstant()
             .toEpochMilli()
         return combine(
-            focusSessionRepository.observeSessionsFrom(monthStart),
-            taskRepository.observeCompletedTasksFrom(monthStart),
+            focusSessionRepository.observeSessionsFrom(queryStart),
+            taskRepository.observeCompletedTasksFrom(queryStart),
             taskRepository.observePendingTasks(),
-            reminderRepository.observeEventsFrom(monthStart),
+            reminderRepository.observeEventsFrom(queryStart),
         ) { focusSessions, completedTasks, pendingTasks, reminderEvents ->
             StatsCalculator.calculate(
                 focusSessions = focusSessions,

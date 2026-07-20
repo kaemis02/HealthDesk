@@ -29,6 +29,7 @@ import com.kaemis.healthdesk.platform.alarm.AndroidFocusAlarmScheduler
 import com.kaemis.healthdesk.platform.alarm.AndroidReminderAlarmScheduler
 import com.kaemis.healthdesk.platform.alarm.FocusAlarmScheduler
 import com.kaemis.healthdesk.platform.alarm.ReminderAlarmScheduler
+import com.kaemis.healthdesk.platform.alarm.WorkdayAlarmScheduler
 import com.kaemis.healthdesk.platform.notification.HealthDeskNotificationChannels
 import com.kaemis.healthdesk.platform.service.FocusActionBus
 import com.kaemis.healthdesk.platform.service.AndroidFocusServiceController
@@ -53,6 +54,7 @@ class AppContainer(
     val focusServiceController: FocusServiceController = AndroidFocusServiceController(context)
     val focusAlarmScheduler: FocusAlarmScheduler = AndroidFocusAlarmScheduler(context)
     val reminderAlarmScheduler: ReminderAlarmScheduler = AndroidReminderAlarmScheduler(context)
+    val workdayAlarmScheduler: WorkdayAlarmScheduler = WorkdayAlarmScheduler(context)
     val alarmFeedbackController: AlarmFeedbackController = AndroidAlarmFeedbackController(context)
     val reminderFeedbackController: ReminderFeedbackController = AndroidReminderFeedbackController(context)
     val taskFeedbackController: TaskFeedbackController = AndroidTaskFeedbackController(context)
@@ -84,6 +86,7 @@ class AppContainer(
         val result = backupService.importNativeBackup(payload, avatarDirectory = java.io.File(context.filesDir, "avatars"))
         if (result is BackupImportSummary.Imported) {
             resyncReminderAlarms()
+            resyncWorkdayAlarms()
         }
         return result
     }
@@ -107,6 +110,7 @@ class AppContainer(
             database.reminderDao().upsert(DefaultData.waterReminder(now))
         }
         resyncReminderAlarms()
+        resyncWorkdayAlarms()
     }
 
     suspend fun resyncReminderAlarms() {
@@ -123,10 +127,20 @@ class AppContainer(
         }
     }
 
+    suspend fun resyncWorkdayAlarms() {
+        val settings = settingsDataStore.settings.first()
+        workdayAlarmScheduler.resync(
+            rules = workingHoursRepository.getRules(),
+            enabled = settings.workingHoursEnabled && settings.workdayNotificationsEnabled,
+            outOfOffice = settings.outOfOffice,
+        )
+    }
+
     suspend fun resetLocalData() {
         // Cancel platform work before removing its persisted source of truth.
         focusAlarmScheduler.cancelPhaseEnd()
         focusAlarmScheduler.cancelWorkdayEnd()
+        workdayAlarmScheduler.cancel()
         database.reminderDao().getAll().forEach { reminderAlarmScheduler.cancel(it.id) }
         alarmFeedbackController.stopAlarm()
         focusServiceController.update(FocusUiState())
