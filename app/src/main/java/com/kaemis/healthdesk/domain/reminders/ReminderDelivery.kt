@@ -22,7 +22,7 @@ fun deliverReminder(
         ReminderScheduler.nextScheduledAt(firedReminder, nowMillis, zoneId)
     }
     val updatedReminder = firedReminder.copy(
-        isEnabled = reminder.scheduleMode != "fixedTimeOnce",
+        isEnabled = reminder.scheduleMode != "fixedTimeOnce" && next != null,
         nextScheduledAt = next,
         updatedAt = nowMillis,
     )

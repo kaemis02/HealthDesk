@@ -53,6 +53,20 @@ class ReminderSchedulerTest {
     }
 
     @Test
+    fun recurringReminderDoesNotScheduleAfterItsInclusiveEndDate() {
+        val now = at(2026, 7, 13, 10, 0)
+        val reminder = reminder(
+            scheduleMode = "recurring",
+            fixedLocalTime = "09:00",
+            recurrenceUnit = "daily",
+            recurrenceInterval = 1,
+            recurrenceEndDate = "2026-07-13",
+        )
+
+        assertNull(ReminderScheduler.nextScheduledAt(reminder, now, zoneId))
+    }
+
+    @Test
     fun weeklyRecurringRequiresSelectedDay() {
         val now = at(2026, 7, 13, 10, 0)
         val reminder = reminder(scheduleMode = "recurring", fixedLocalTime = "12:00", recurrenceUnit = "weekly", recurrenceInterval = 1, recurrenceWeekdays = "1,3")
@@ -138,6 +152,7 @@ class ReminderSchedulerTest {
         recurrenceDayOfMonth: Int? = null,
         recurrenceMonth: Int? = null,
         recurrenceDay: Int? = null,
+        recurrenceEndDate: String? = null,
         lastFiredAt: Long? = null,
     ): ReminderEntity = ReminderEntity(
         id = "reminder",
@@ -160,6 +175,7 @@ class ReminderSchedulerTest {
         nextScheduledAt = null,
         createdAt = 1000L,
         updatedAt = 1000L,
+        recurrenceEndDate = recurrenceEndDate,
     )
 
     private fun at(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long =

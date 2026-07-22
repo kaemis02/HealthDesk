@@ -3,7 +3,7 @@ package com.kaemis.healthdesk.data.backup
 import kotlinx.serialization.Serializable
 
 const val NATIVE_BACKUP_PAYLOAD_TYPE = "healthdesk.native.backup"
-const val NATIVE_BACKUP_SCHEMA_VERSION = 1
+const val NATIVE_BACKUP_SCHEMA_VERSION = 2
 
 @Serializable
 data class NativeBackupPayload(
@@ -43,6 +43,7 @@ data class BackupSettings(
     val restMinutes: Int,
     val snoozeMinutes: Int,
     val pomodoroCycles: Int = 4,
+    val pomodoroWorkMinutes: Int = 25,
     val pomodoroShortRestMinutes: Int = 5,
     val pomodoroLongRestMinutes: Int = 15,
     val multiCycleCycles: Int = 3,
@@ -121,6 +122,7 @@ data class BackupReminder(
     val nextScheduledAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,
+    val recurrenceEndDate: String? = null,
 )
 
 @Serializable

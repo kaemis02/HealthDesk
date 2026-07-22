@@ -79,7 +79,7 @@ private fun healthDeskDarkColors(accentKey: String): ColorScheme {
 @Composable
 fun HealthDeskTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    accentKey: String = "sage",
+    accentKey: String = "#6697FF",
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(

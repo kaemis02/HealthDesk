@@ -91,7 +91,7 @@ private fun SettingsSnapshot.builtInFocusMode(modeId: String): ResolvedFocusMode
         id = POMODORO_MODE_ID,
         name = "Pomodoro",
         type = POMODORO_MODE_ID,
-        workMinutes = workSessionMinutes,
+        workMinutes = pomodoroWorkMinutes,
         restMinutes = restMinutes,
         snoozeMinutes = snoozeMinutes,
         pomodoroCycles = pomodoroCycles,

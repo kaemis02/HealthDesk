@@ -58,6 +58,8 @@ object ReminderScheduler {
             "yearly" -> nextYearly(now, time, interval, reminder.recurrenceMonth ?: 1, reminder.recurrenceDay ?: 1)
             else -> null
         } ?: return null
+        val endDate = reminder.recurrenceEndDate?.let { value -> runCatching { LocalDate.parse(value) }.getOrNull() }
+        if (endDate != null && candidate.toLocalDate().isAfter(endDate)) return null
         return candidate.atZone(zoneId).toInstant().toEpochMilli()
     }
 

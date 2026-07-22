@@ -18,13 +18,14 @@ private val settingsJson = Json { ignoreUnknownKeys = true }
 
 data class SettingsSnapshot(
     val themeMode: String = "system",
-    val accentKey: String = "sage",
+    val accentKey: String = "#6697FF",
     val languageCode: String = "en",
     val timerMode: String = "normalTimer",
     val workSessionMinutes: Int = 50,
     val restMinutes: Int = 10,
     val snoozeMinutes: Int = 10,
     val pomodoroCycles: Int = 4,
+    val pomodoroWorkMinutes: Int = 25,
     val pomodoroShortRestMinutes: Int = 5,
     val pomodoroLongRestMinutes: Int = 15,
     val multiCycleCycles: Int = 3,
@@ -37,7 +38,6 @@ data class SettingsSnapshot(
     val alarmSoundKey: String = "tone1",
     val reminderSoundKey: String = "ring2",
     val taskSoundKey: String = "ring1",
-    val tutorialCompleted: Boolean = false,
 )
 
 class SettingsDataStore(
@@ -46,13 +46,14 @@ class SettingsDataStore(
     val settings: Flow<SettingsSnapshot> = context.settingsDataStore.data.map { preferences ->
         SettingsSnapshot(
             themeMode = preferences[Keys.ThemeMode] ?: "system",
-            accentKey = preferences[Keys.AccentKey] ?: "sage",
+            accentKey = preferences[Keys.AccentKey] ?: "#6697FF",
             languageCode = preferences[Keys.LanguageCode] ?: "en",
             timerMode = preferences[Keys.TimerMode] ?: "normalTimer",
             workSessionMinutes = preferences[Keys.WorkSessionMinutes] ?: 50,
             restMinutes = preferences[Keys.RestMinutes] ?: 10,
             snoozeMinutes = preferences[Keys.SnoozeMinutes] ?: 10,
             pomodoroCycles = preferences[Keys.PomodoroCycles] ?: 4,
+            pomodoroWorkMinutes = preferences[Keys.PomodoroWorkMinutes] ?: 25,
             pomodoroShortRestMinutes = preferences[Keys.PomodoroShortRestMinutes] ?: 5,
             pomodoroLongRestMinutes = preferences[Keys.PomodoroLongRestMinutes] ?: 15,
             multiCycleCycles = preferences[Keys.MultiCycleCycles] ?: 3,
@@ -65,7 +66,6 @@ class SettingsDataStore(
             alarmSoundKey = preferences[Keys.AlarmSoundKey] ?: "tone1",
             reminderSoundKey = preferences[Keys.ReminderSoundKey] ?: "ring2",
             taskSoundKey = preferences[Keys.TaskSoundKey] ?: "ring1",
-            tutorialCompleted = preferences[Keys.TutorialCompleted] ?: false,
         )
     }
 
@@ -114,6 +114,12 @@ class SettingsDataStore(
     suspend fun updatePomodoroCycles(cycles: Int) {
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.PomodoroCycles] = cycles.coerceAtLeast(1)
+        }
+    }
+
+    suspend fun updatePomodoroWorkMinutes(minutes: Int) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.PomodoroWorkMinutes] = minutes.coerceAtLeast(1)
         }
     }
 
@@ -189,13 +195,6 @@ class SettingsDataStore(
         }
     }
 
-    /** UI-only state; onboarding completion is never included in portable backups. */
-    suspend fun updateTutorialCompleted(completed: Boolean) {
-        context.settingsDataStore.edit { preferences ->
-            preferences[Keys.TutorialCompleted] = completed
-        }
-    }
-
     suspend fun replaceWith(snapshot: SettingsSnapshot) {
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.ThemeMode] = snapshot.themeMode
@@ -206,6 +205,7 @@ class SettingsDataStore(
             preferences[Keys.RestMinutes] = snapshot.restMinutes.coerceAtLeast(0)
             preferences[Keys.SnoozeMinutes] = snapshot.snoozeMinutes.coerceAtLeast(1)
             preferences[Keys.PomodoroCycles] = snapshot.pomodoroCycles.coerceAtLeast(1)
+            preferences[Keys.PomodoroWorkMinutes] = snapshot.pomodoroWorkMinutes.coerceAtLeast(1)
             preferences[Keys.PomodoroShortRestMinutes] = snapshot.pomodoroShortRestMinutes.coerceAtLeast(0)
             preferences[Keys.PomodoroLongRestMinutes] = snapshot.pomodoroLongRestMinutes.coerceAtLeast(0)
             preferences[Keys.MultiCycleCycles] = snapshot.multiCycleCycles.coerceAtLeast(1)
@@ -236,6 +236,7 @@ class SettingsDataStore(
         val RestMinutes = intPreferencesKey("restMinutes")
         val SnoozeMinutes = intPreferencesKey("snoozeMinutes")
         val PomodoroCycles = intPreferencesKey("pomodoroCycles")
+        val PomodoroWorkMinutes = intPreferencesKey("pomodoroWorkMinutes")
         val PomodoroShortRestMinutes = intPreferencesKey("pomodoroShortRestMinutes")
         val PomodoroLongRestMinutes = intPreferencesKey("pomodoroLongRestMinutes")
         val MultiCycleCycles = intPreferencesKey("multiCycleCycles")
@@ -248,7 +249,6 @@ class SettingsDataStore(
         val AlarmSoundKey = stringPreferencesKey("alarmSoundKey")
         val ReminderSoundKey = stringPreferencesKey("reminderSoundKey")
         val TaskSoundKey = stringPreferencesKey("taskSoundKey")
-        val TutorialCompleted = booleanPreferencesKey("tutorialCompleted")
     }
 
     private fun decodeCustomFocusModes(raw: String?): List<CustomFocusMode> = raw?.let {

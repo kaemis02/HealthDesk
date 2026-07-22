@@ -18,8 +18,7 @@ class SettingsSnapshotTest {
     }
 
     @Test
-    fun showsTutorialUntilTheUserCompletesIt() {
-        assertEquals(false, SettingsSnapshot().tutorialCompleted)
-        assertEquals(true, SettingsSnapshot(tutorialCompleted = true).tutorialCompleted)
+    fun defaultsToTheBlueAccent() {
+        assertEquals("#6697FF", SettingsSnapshot().accentKey)
     }
 }

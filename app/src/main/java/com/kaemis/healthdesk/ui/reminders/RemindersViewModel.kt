@@ -29,6 +29,7 @@ data class ReminderDraft(
     val monthlyWeekOrdinal: Int = 1,
     val soundKey: String = "ring2",
     val iconKey: String = "notifications",
+    val recurrenceEndDate: String? = null,
 )
 
 fun ReminderEntity.toDraft(): ReminderDraft = ReminderDraft(
@@ -56,6 +57,7 @@ fun ReminderEntity.toDraft(): ReminderDraft = ReminderDraft(
     monthlyWeekOrdinal = recurrenceDayOfMonth ?: 1,
     soundKey = soundKey,
     iconKey = iconKey,
+    recurrenceEndDate = recurrenceEndDate,
 )
 
 class RemindersViewModel(
@@ -70,15 +72,20 @@ class RemindersViewModel(
     )
     fun toggleReminder(reminder: ReminderEntity) {
         val now = nowProvider()
-        val enabled = !reminder.isEnabled
+        val requestedEnabled = !reminder.isEnabled
+        val nextScheduledAt = if (requestedEnabled) {
+            ReminderScheduler.nextScheduledAt(reminder.copy(isEnabled = true), now)
+        } else {
+            null
+        }
         val updated = reminder.copy(
-            isEnabled = enabled,
-            nextScheduledAt = if (enabled) ReminderScheduler.nextScheduledAt(reminder.copy(isEnabled = true), now) else null,
+            isEnabled = requestedEnabled && nextScheduledAt != null,
+            nextScheduledAt = nextScheduledAt,
             updatedAt = now,
         )
         viewModelScope.launch {
             reminderRepository.saveReminder(updated)
-            if (enabled && updated.nextScheduledAt != null) {
+            if (updated.isEnabled && updated.nextScheduledAt != null) {
                 reminderAlarmScheduler.schedule(updated.id, updated.nextScheduledAt)
             } else {
                 reminderAlarmScheduler.cancel(updated.id)
@@ -128,6 +135,7 @@ class RemindersViewModel(
             },
             soundKey = draft.soundKey,
             iconKey = draft.iconKey,
+            recurrenceEndDate = if (draft.scheduleMode == "recurring") draft.recurrenceEndDate else null,
             nextScheduledAt = if ((existing?.isEnabled ?: false)) {
                 ReminderScheduler.nextScheduledAt(
                     reminder = (existing ?: newReminderSkeleton(trimmedTitle, now)).copy(
@@ -155,6 +163,7 @@ class RemindersViewModel(
                         recurrenceDay = if (draft.scheduleMode == "recurring" && draft.recurrenceUnit == "yearly") draft.recurrenceDay.coerceIn(1, 31) else null,
                         soundKey = draft.soundKey,
                         iconKey = draft.iconKey,
+                        recurrenceEndDate = if (draft.scheduleMode == "recurring") draft.recurrenceEndDate else null,
                     ),
                     nowMillis = now,
                 )

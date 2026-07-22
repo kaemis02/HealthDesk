@@ -1,6 +1,7 @@
 package com.kaemis.healthdesk.platform.service
 
 import android.app.PendingIntent
+import android.app.NotificationManager
 import android.app.Service
 import android.app.Notification
 import android.content.Context
@@ -10,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import com.kaemis.healthdesk.MainActivity
 import com.kaemis.healthdesk.R
 import com.kaemis.healthdesk.platform.notification.HealthDeskNotificationChannels
+import com.kaemis.healthdesk.platform.notification.HealthDeskNotificationIcon
 
 class FocusForegroundService : Service() {
     override fun onCreate() {
@@ -21,10 +23,12 @@ class FocusForegroundService : Service() {
         when (intent?.action) {
             ACTION_STOP_SERVICE -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
+                getSystemService(NotificationManager::class.java).cancel(HealthDeskNotificationChannels.FOCUS_SESSION_NOTIFICATION_ID)
+                getSystemService(NotificationManager::class.java).cancel(HealthDeskNotificationChannels.FOCUS_ALARM_NOTIFICATION_ID)
                 stopSelf()
                 return START_NOT_STICKY
             }
-            else -> startForeground(
+            ACTION_UPDATE -> startForeground(
                 notificationId(intent),
                 buildNotification(
                     phaseLabel = intent?.getStringExtra(EXTRA_PHASE_LABEL) ?: "Focus",
@@ -34,8 +38,12 @@ class FocusForegroundService : Service() {
                     isRestAlarm = intent?.getBooleanExtra(EXTRA_IS_REST_ALARM, false) ?: false,
                 ),
             )
+            else -> {
+                stopSelf()
+                return START_NOT_STICKY
+            }
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -54,7 +62,8 @@ class FocusForegroundService : Service() {
             HealthDeskNotificationChannels.FOCUS_SESSION_CHANNEL_ID
         },
     )
-        .setSmallIcon(R.drawable.ic_launcher_foreground)
+        .setSmallIcon(R.drawable.ic_notification_small)
+        .setLargeIcon(HealthDeskNotificationIcon.large(this))
         .setContentTitle("HealthDesk")
         .setContentText("$phaseLabel - $remainingLabel")
         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -63,10 +72,10 @@ class FocusForegroundService : Service() {
         .setSilent(true)
         .setOngoing(!isAlarm)
         .setOnlyAlertOnce(!isAlarm)
-        .setContentIntent(openAppPendingIntent())
+        .setContentIntent(openAppPendingIntent(isAlarm))
         .apply {
             if (isAlarm) {
-                setFullScreenIntent(openAppPendingIntent(), true)
+                setFullScreenIntent(openAppPendingIntent(showOverLockScreen = true), true)
                 addAction(0, "Stop alarm", actionPendingIntent(FocusActionReceiver.ACTION_STOP_ALARM))
                 addAction(0, "Snooze", actionPendingIntent(FocusActionReceiver.ACTION_SNOOZE))
                 if (isRestAlarm) {
@@ -85,10 +94,11 @@ class FocusForegroundService : Service() {
         }
         .build()
 
-    private fun openAppPendingIntent(): PendingIntent = PendingIntent.getActivity(
+    private fun openAppPendingIntent(showOverLockScreen: Boolean): PendingIntent = PendingIntent.getActivity(
         this,
         0,
-        Intent(this, MainActivity::class.java),
+        Intent(this, MainActivity::class.java)
+            .putExtra(MainActivity.EXTRA_SHOW_OVER_LOCK_SCREEN, showOverLockScreen),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 

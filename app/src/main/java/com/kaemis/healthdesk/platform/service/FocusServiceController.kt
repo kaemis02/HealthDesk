@@ -1,6 +1,7 @@
 package com.kaemis.healthdesk.platform.service
 
 import android.content.Context
+import android.app.NotificationManager
 import androidx.core.content.ContextCompat
 import com.kaemis.healthdesk.ui.focus.FocusPhase
 import com.kaemis.healthdesk.ui.focus.FocusUiState
@@ -27,7 +28,11 @@ class AndroidFocusServiceController(
             HealthDeskWidgetUpdater.updateAll(context)
         }
         if (!state.phase.requiresForegroundService()) {
-            context.startService(FocusForegroundService.stopIntent(context))
+            context.stopService(FocusForegroundService.stopIntent(context))
+            context.getSystemService(NotificationManager::class.java).apply {
+                cancel(com.kaemis.healthdesk.platform.notification.HealthDeskNotificationChannels.FOCUS_SESSION_NOTIFICATION_ID)
+                cancel(com.kaemis.healthdesk.platform.notification.HealthDeskNotificationChannels.FOCUS_ALARM_NOTIFICATION_ID)
+            }
             return
         }
 

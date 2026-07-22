@@ -184,6 +184,7 @@ class FocusViewModelTest {
             settings = SettingsSnapshot(
                 timerMode = "pomodoro",
                 workSessionMinutes = 1,
+                pomodoroWorkMinutes = 1,
                 pomodoroCycles = 2,
                 pomodoroShortRestMinutes = 0,
                 pomodoroLongRestMinutes = 0,

@@ -32,4 +32,6 @@ data class ReminderEntity(
     val nextScheduledAt: Long?,
     val createdAt: Long,
     val updatedAt: Long,
+    /** Inclusive local ISO date. Null means the recurrence has no end. */
+    val recurrenceEndDate: String? = null,
 )

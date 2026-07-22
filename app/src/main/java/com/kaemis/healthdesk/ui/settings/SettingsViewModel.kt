@@ -72,7 +72,9 @@ class SettingsViewModel(
     }
 
     fun updateFocusWorkSessionMinutes(modeId: String, minutes: Int) {
-        if (isBuiltInFocusModeId(modeId)) {
+        if (modeId == POMODORO_MODE_ID) {
+            updatePomodoroWorkMinutes(minutes)
+        } else if (isBuiltInFocusModeId(modeId)) {
             updateWorkSessionMinutes(minutes)
         } else {
             updateCustomFocusMode(modeId) { it.copy(workMinutes = minutes.coerceAtLeast(1)) }
@@ -105,6 +107,10 @@ class SettingsViewModel(
 
     fun updatePomodoroCycles(cycles: Int) = viewModelScope.launch {
         settingsDataStore.updatePomodoroCycles(cycles)
+    }
+
+    fun updatePomodoroWorkMinutes(minutes: Int) = viewModelScope.launch {
+        settingsDataStore.updatePomodoroWorkMinutes(minutes)
     }
 
     fun updateFocusPomodoroCycles(modeId: String, cycles: Int) {
@@ -189,10 +195,6 @@ class SettingsViewModel(
 
     fun updateTaskSoundKey(soundKey: String) = viewModelScope.launch {
         settingsDataStore.updateTaskSoundKey(soundKey)
-    }
-
-    fun updateTutorialCompleted(completed: Boolean) = viewModelScope.launch {
-        settingsDataStore.updateTutorialCompleted(completed)
     }
 
     fun resetLocalData() = viewModelScope.launch {

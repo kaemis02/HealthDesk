@@ -21,4 +21,5 @@ data class Reminder(
     val nextScheduledAt: Long?,
     val createdAt: Long,
     val updatedAt: Long,
+    val recurrenceEndDate: String? = null,
 )

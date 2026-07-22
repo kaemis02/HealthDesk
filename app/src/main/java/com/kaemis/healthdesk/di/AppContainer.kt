@@ -8,6 +8,7 @@ import com.kaemis.healthdesk.data.backup.BackupService
 import com.kaemis.healthdesk.data.backup.NativeBackupPayload
 import com.kaemis.healthdesk.data.datastore.SettingsDataStore
 import com.kaemis.healthdesk.data.db.HEALTHDESK_MIGRATION_1_2
+import com.kaemis.healthdesk.data.db.HEALTHDESK_MIGRATION_2_3
 import com.kaemis.healthdesk.data.db.HealthDeskDatabase
 import com.kaemis.healthdesk.data.defaults.DefaultData
 import com.kaemis.healthdesk.data.entity.DEFAULT_PROFILE_ID
@@ -61,7 +62,7 @@ class AppContainer(
 
     val database: HealthDeskDatabase by lazy {
         Room.databaseBuilder(context, HealthDeskDatabase::class.java, "healthdesk.db")
-            .addMigrations(HEALTHDESK_MIGRATION_1_2)
+            .addMigrations(HEALTHDESK_MIGRATION_1_2, HEALTHDESK_MIGRATION_2_3)
             .build()
     }
 
@@ -119,6 +120,7 @@ class AppContainer(
             val next = ReminderScheduler.nextScheduledAt(reminder, now)
             if (next == null) {
                 reminderAlarmScheduler.cancel(reminder.id)
+                database.reminderDao().upsert(reminder.copy(isEnabled = false, nextScheduledAt = null, updatedAt = now))
             } else {
                 val updated = reminder.copy(nextScheduledAt = next, updatedAt = now)
                 database.reminderDao().upsert(updated)

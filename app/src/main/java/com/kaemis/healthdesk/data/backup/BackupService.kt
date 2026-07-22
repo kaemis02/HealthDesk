@@ -191,6 +191,7 @@ private fun SettingsSnapshot.toBackupSettings(): BackupSettings = BackupSettings
     restMinutes = restMinutes,
     snoozeMinutes = snoozeMinutes,
     pomodoroCycles = pomodoroCycles,
+    pomodoroWorkMinutes = pomodoroWorkMinutes,
     pomodoroShortRestMinutes = pomodoroShortRestMinutes,
     pomodoroLongRestMinutes = pomodoroLongRestMinutes,
     multiCycleCycles = multiCycleCycles,
@@ -214,6 +215,7 @@ private fun BackupSettings.toSettingsSnapshot(): SettingsSnapshot = SettingsSnap
     restMinutes = restMinutes,
     snoozeMinutes = snoozeMinutes,
     pomodoroCycles = pomodoroCycles,
+    pomodoroWorkMinutes = pomodoroWorkMinutes,
     pomodoroShortRestMinutes = pomodoroShortRestMinutes,
     pomodoroLongRestMinutes = pomodoroLongRestMinutes,
     multiCycleCycles = multiCycleCycles,
@@ -267,12 +269,12 @@ private fun BackupFocusSession.toEntity(): FocusSessionEntity = FocusSessionEnti
 
 private fun ReminderEntity.toBackup(): BackupReminder = BackupReminder(
     id, kind, title, categoryId, isEnabled, scheduleMode, intervalMinutes, fixedLocalTime, recurrenceUnit, recurrenceInterval, recurrenceWeekdays,
-    recurrenceDayOfMonth, recurrenceMonth, recurrenceDay, soundKey, iconKey, lastFiredAt, nextScheduledAt, createdAt, updatedAt,
+    recurrenceDayOfMonth, recurrenceMonth, recurrenceDay, soundKey, iconKey, lastFiredAt, nextScheduledAt, createdAt, updatedAt, recurrenceEndDate,
 )
 
 private fun BackupReminder.toEntity(): ReminderEntity = ReminderEntity(
     id, kind, title, categoryId, isEnabled, scheduleMode, intervalMinutes, fixedLocalTime, recurrenceUnit, recurrenceInterval, recurrenceWeekdays,
-    recurrenceDayOfMonth, recurrenceMonth, recurrenceDay, soundKey, iconKey, lastFiredAt, nextScheduledAt, createdAt, updatedAt,
+    recurrenceDayOfMonth, recurrenceMonth, recurrenceDay, soundKey, iconKey, lastFiredAt, nextScheduledAt, createdAt, updatedAt, recurrenceEndDate,
 )
 
 private fun CategoryEntity.toBackup(): BackupCategory = BackupCategory(id, scope, name, iconKey, colorKey, sortOrder, isBuiltIn, createdAt, updatedAt)

@@ -34,7 +34,7 @@ import com.kaemis.healthdesk.data.entity.WorkingHourRuleEntity
         ReminderEventEntity::class,
         WorkingHourRuleEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class HealthDeskDatabase : RoomDatabase() {
@@ -50,5 +50,11 @@ abstract class HealthDeskDatabase : RoomDatabase() {
 val HEALTHDESK_MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE reminders ADD COLUMN iconKey TEXT NOT NULL DEFAULT 'notifications'")
+    }
+}
+
+val HEALTHDESK_MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE reminders ADD COLUMN recurrenceEndDate TEXT")
     }
 }

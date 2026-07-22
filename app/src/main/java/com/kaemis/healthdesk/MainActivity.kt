@@ -63,6 +63,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -88,6 +90,7 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -180,6 +183,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        updateLockScreenVisibility(intent)
         val appContainer = (application as HealthDeskApplication).appContainer
 
         setContent {
@@ -268,6 +272,22 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        updateLockScreenVisibility(intent)
+    }
+
+    private fun updateLockScreenVisibility(intent: Intent?) {
+        val isAlarm = intent?.getBooleanExtra(EXTRA_SHOW_OVER_LOCK_SCREEN, false) == true
+        setShowWhenLocked(isAlarm)
+        setTurnScreenOn(isAlarm)
+    }
+
+    companion object {
+        const val EXTRA_SHOW_OVER_LOCK_SCREEN = "com.kaemis.healthdesk.extra.SHOW_OVER_LOCK_SCREEN"
+    }
 }
 
 private enum class AppDestination(
@@ -307,7 +327,6 @@ private fun HealthDeskApp(
     val tasksState by tasksViewModel.state.collectAsState()
     val stats by statsViewModel.stats.collectAsState()
     val strings = stringsFor(settings.languageCode)
-    var showTutorial by remember { mutableStateOf(!settings.tutorialCompleted) }
 
     BackHandler(enabled = drawerState.isOpen || selectedDestination != AppDestination.Dashboard) {
         if (drawerState.isOpen) {
@@ -327,8 +346,8 @@ private fun HealthDeskApp(
         HealthDeskWidgetUpdater.updateAll(context)
     }
 
-    LaunchedEffect(settings.notificationsEnabled, settings.tutorialCompleted) {
-        if (settings.tutorialCompleted && settings.notificationsEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+    LaunchedEffect(settings.notificationsEnabled) {
+        if (settings.notificationsEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
             if (!granted) {
                 requestNotificationsPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -394,71 +413,11 @@ private fun HealthDeskApp(
                     backupService = backupService,
                     importNativeBackup = importNativeBackup,
                     onDestinationSelected = { selectedDestination = it },
-                    onShowTutorial = { showTutorial = true },
                 )
             }
         }
     }
-    if (showTutorial) {
-        FirstRunTutorialDialog(
-            strings = strings,
-            onFinish = {
-                selectedDestination = AppDestination.Dashboard
-                showTutorial = false
-                settingsViewModel.updateTutorialCompleted(true)
-            },
-            onDestinationSelected = { selectedDestination = it },
-        )
-    }
 }
-
-@Composable
-private fun FirstRunTutorialDialog(
-    strings: AppStrings,
-    onFinish: () -> Unit,
-    onDestinationSelected: (AppDestination) -> Unit,
-) {
-    var page by remember { mutableStateOf(0) }
-    val pages = listOf(
-        TutorialPage(AppDestination.Dashboard, Icons.Outlined.Home, strings.tutorialWelcomeTitle, strings.tutorialWelcomeBody),
-        TutorialPage(AppDestination.Dashboard, Icons.Outlined.Schedule, strings.tutorialFocusTitle, strings.tutorialFocusBody),
-        TutorialPage(AppDestination.Reminders, Icons.Outlined.Notifications, strings.tutorialRemindersTitle, strings.tutorialRemindersBody),
-        TutorialPage(AppDestination.Tasks, Icons.Outlined.TaskAlt, strings.tutorialTasksTitle, strings.tutorialTasksBody),
-        TutorialPage(AppDestination.Stats, Icons.Outlined.Insights, strings.tutorialStatsTitle, strings.tutorialStatsBody),
-        TutorialPage(AppDestination.Settings, Icons.Outlined.Schedule, strings.tutorialWorkingHoursTitle, strings.tutorialWorkingHoursBody),
-        TutorialPage(AppDestination.Settings, Icons.Outlined.Settings, strings.tutorialDataTitle, strings.tutorialDataBody),
-    )
-    val currentPage = pages[page]
-    LaunchedEffect(page) { onDestinationSelected(currentPage.destination) }
-    AlertDialog(
-        onDismissRequest = onFinish,
-        title = { Text(currentPage.title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(currentPage.icon, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                Text(strings.tutorialStep(page + 1, pages.size), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Text(currentPage.body)
-            }
-        },
-        confirmButton = {
-            if (page == pages.lastIndex) TextButton(onClick = onFinish) { Text(strings.done) }
-            else TextButton(onClick = { page += 1 }) { Text(strings.next) }
-        },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (page > 0) TextButton(onClick = { page -= 1 }) { Text(strings.back) }
-                TextButton(onClick = onFinish) { Text(if (page == pages.lastIndex) strings.done else strings.skip) }
-            }
-        },
-    )
-}
-
-private data class TutorialPage(
-    val destination: AppDestination,
-    val icon: ImageVector,
-    val title: String,
-    val body: String,
-)
 
 @Composable
 private fun HealthDeskDrawer(
@@ -556,7 +515,6 @@ private fun DestinationContent(
     backupService: BackupService,
     importNativeBackup: suspend (NativeBackupPayload) -> BackupImportSummary,
     onDestinationSelected: (AppDestination) -> Unit,
-    onShowTutorial: () -> Unit,
 ) {
     val screenScrollState = rememberScrollState()
 
@@ -602,7 +560,6 @@ private fun DestinationContent(
                 backupService,
                 importNativeBackup,
                 strings,
-                onShowTutorial,
             )
             }
         }
@@ -861,8 +818,10 @@ private fun FocusCard(
                     NumberFieldRow(strings.workMinutes, selectedMode.workMinutes, 1, 120) {
                         settingsViewModel.updateFocusWorkSessionMinutes(selectedMode.id, it)
                     }
-                    NumberFieldRow(strings.restMinutes, selectedMode.restMinutes, 0, 60) {
-                        settingsViewModel.updateFocusRestMinutes(selectedMode.id, it)
+                    if (selectedMode.type != POMODORO_MODE_ID) {
+                        NumberFieldRow(strings.restMinutes, selectedMode.restMinutes, 0, 60) {
+                            settingsViewModel.updateFocusRestMinutes(selectedMode.id, it)
+                        }
                     }
                     NumberFieldRow(strings.snoozeMinutes, selectedMode.snoozeMinutes, 1, 30) {
                         settingsViewModel.updateFocusSnoozeMinutes(selectedMode.id, it)
@@ -1103,11 +1062,9 @@ private fun DashboardReminderSummary(
         icon = Icons.Outlined.Notifications,
         modifier = Modifier.clickable(onClick = onClick),
     ) {
-        val water = reminders.firstOrNull { it.id == "reminder-water-built-in" && it.isEnabled }
-        val custom = reminders.filter { it.isEnabled && it.id != "reminder-water-built-in" }
+        val upcoming = reminders.filter { it.isEnabled }
             .sortedBy { it.nextScheduledAt ?: Long.MAX_VALUE }
-            .take(3)
-        val upcoming = listOfNotNull(water) + custom
+            .take(2)
         if (upcoming.isEmpty()) {
             Text(strings.noRemindersDashboard)
         } else {
@@ -1136,10 +1093,10 @@ private fun DashboardTaskSummary(
         if (tasks.isEmpty()) {
             Text(strings.noTasksDashboard)
         } else {
-            tasks.take(3).forEach { task ->
+            tasks.take(2).forEach { task ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(task.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(task.title, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -1456,6 +1413,7 @@ private fun ReminderCard(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun ReminderEditorDialog(
     initialDraft: ReminderDraft,
     settings: SettingsSnapshot,
@@ -1466,6 +1424,7 @@ private fun ReminderEditorDialog(
 ) {
     var draft by remember(initialDraft) { mutableStateOf(initialDraft) }
     var showIconPicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1544,19 +1503,25 @@ private fun ReminderEditorDialog(
                             )
                         }
                     }
-                    if (draft.recurrenceUnit != "daily") {
-                        OutlinedTextField(
-                            value = draft.recurrenceInterval.toString(),
-                            onValueChange = { value ->
-                                val parsed = value.toIntOrNull()
-                                if (parsed != null || value.isBlank()) {
-                                    draft = draft.copy(recurrenceInterval = parsed?.coerceAtLeast(1) ?: 1)
-                                }
-                            },
-                            label = { Text(strings.recurringLabel) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
+                    Text(strings.recurrenceEnds, style = MaterialTheme.typography.labelLarge)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SegmentedActionButton(
+                            selected = draft.recurrenceEndDate == null,
+                            onClick = { draft = draft.copy(recurrenceEndDate = null) },
+                            text = strings.recurrenceNeverEnds,
+                            modifier = Modifier.weight(1f),
                         )
+                        SegmentedActionButton(
+                            selected = draft.recurrenceEndDate != null,
+                            onClick = { showEndDatePicker = true },
+                            text = strings.recurrenceEndsOnDate,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    draft.recurrenceEndDate?.let { endDate ->
+                        OutlinedButton(onClick = { showEndDatePicker = true }) {
+                            Text(endDate)
+                        }
                     }
                     if (draft.recurrenceUnit == "weekly") {
                         WeekdaySelector(
@@ -1624,6 +1589,27 @@ private fun ReminderEditorDialog(
                 }
             },
         )
+    }
+
+    if (showEndDatePicker) {
+        val selectedMillis = draft.recurrenceEndDate
+            ?.let { runCatching { LocalDate.parse(it).atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli() }.getOrNull() }
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
+        DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val date = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
+                        draft = draft.copy(recurrenceEndDate = date.toString())
+                    }
+                    showEndDatePicker = false
+                }) { Text(strings.done) }
+            },
+            dismissButton = { TextButton(onClick = { showEndDatePicker = false }) { Text(strings.cancel) } },
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 }
 
@@ -2409,12 +2395,12 @@ private fun SettingsScreen(
     backupService: BackupService,
     importNativeBackup: suspend (NativeBackupPayload) -> BackupImportSummary,
     strings: AppStrings,
-    onShowTutorial: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showResetConfirmation by remember { mutableStateOf(false) }
     var showWorkingHoursEditor by remember { mutableStateOf(false) }
+    var showWorkingHoursHelp by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<NativeBackupPayload?>(null) }
     var showBackupError by remember { mutableStateOf(false) }
     val createBackupDocument = rememberLauncherForActivityResult(
@@ -2453,10 +2439,15 @@ private fun SettingsScreen(
             text = activeRules.firstOrNull()?.let { "${it.startLocalTime} - ${it.endLocalTime}" } ?: strings.workingHoursOff,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        OutlinedButton(
-            enabled = settings.workingHoursEnabled,
-            onClick = { showWorkingHoursEditor = true },
-        ) { Text(strings.edit) }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(
+                enabled = settings.workingHoursEnabled,
+                onClick = { showWorkingHoursEditor = true },
+            ) { Text(strings.edit) }
+            IconButton(onClick = { showWorkingHoursHelp = true }) {
+                Icon(Icons.Outlined.Info, contentDescription = strings.workingHoursHelpTitle)
+            }
+        }
         SwitchRow(strings.outOfOffice, settings.outOfOffice, settingsViewModel::updateOutOfOffice)
     }
 
@@ -2532,7 +2523,15 @@ private fun SettingsScreen(
     SectionCard(title = strings.aboutAndSupport) {
         Text(strings.versionText)
         Text(strings.licenseText)
-        OutlinedButton(onClick = onShowTutorial) { Text(strings.tutorial) }
+    }
+
+    if (showWorkingHoursHelp) {
+        AlertDialog(
+            onDismissRequest = { showWorkingHoursHelp = false },
+            title = { Text(strings.workingHoursHelpTitle) },
+            text = { Text(strings.workingHoursHelpBody) },
+            confirmButton = { TextButton(onClick = { showWorkingHoursHelp = false }) { Text(strings.done) } },
+        )
     }
 
     if (showResetConfirmation) {

@@ -49,6 +49,7 @@ class FocusModeTest {
         val settings = SettingsSnapshot(
             timerMode = POMODORO_MODE_ID,
             workSessionMinutes = 40,
+            pomodoroWorkMinutes = 40,
             snoozeMinutes = 7,
             pomodoroCycles = 2,
             pomodoroShortRestMinutes = 4,
@@ -85,5 +86,16 @@ class FocusModeTest {
         assertEquals(5, mode.restMinutesForCycle(1))
         assertEquals(5, mode.restMinutesForCycle(2))
         assertEquals(15, mode.restMinutesForCycle(3))
+    }
+
+    @Test
+    fun defaultsKeepNormalAndPomodoroDurationsIndependent() {
+        val defaults = SettingsSnapshot()
+
+        assertEquals(50, defaults.workSessionMinutes)
+        assertEquals(10, defaults.restMinutes)
+        assertEquals(25, defaults.copy(timerMode = POMODORO_MODE_ID).resolveFocusMode().workMinutes)
+        assertEquals(5, defaults.pomodoroShortRestMinutes)
+        assertEquals(15, defaults.pomodoroLongRestMinutes)
     }
 }

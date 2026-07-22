@@ -92,6 +92,7 @@ fun ReminderEntity.toDomain(): Reminder = Reminder(
     nextScheduledAt = nextScheduledAt,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    recurrenceEndDate = recurrenceEndDate,
 )
 
 fun Reminder.toEntity(): ReminderEntity = ReminderEntity(
@@ -115,6 +116,7 @@ fun Reminder.toEntity(): ReminderEntity = ReminderEntity(
     nextScheduledAt = nextScheduledAt,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    recurrenceEndDate = recurrenceEndDate,
 )
 
 fun ReminderEventEntity.toDomain(): ReminderEvent = ReminderEvent(id, reminderId, titleSnapshot, categorySnapshot, firedAt, deliveryResult)

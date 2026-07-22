@@ -10,6 +10,7 @@ import com.kaemis.healthdesk.HealthDeskApplication
 import com.kaemis.healthdesk.MainActivity
 import com.kaemis.healthdesk.R
 import com.kaemis.healthdesk.platform.notification.HealthDeskNotificationChannels
+import com.kaemis.healthdesk.platform.notification.HealthDeskNotificationIcon
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -34,9 +35,16 @@ class WorkdayAlarmReceiver : BroadcastReceiver() {
     }
 
     private fun showNotification(context: Context, isEnd: Boolean) {
-        val openApp = PendingIntent.getActivity(context, 5000 + if (isEnd) 1 else 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val openApp = PendingIntent.getActivity(
+            context,
+            5000 + if (isEnd) 1 else 0,
+            Intent(context, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_SHOW_OVER_LOCK_SCREEN, isEnd),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         val notification = NotificationCompat.Builder(context, HealthDeskNotificationChannels.FOCUS_ALARM_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification_small)
+            .setLargeIcon(HealthDeskNotificationIcon.large(context))
             .setContentTitle(if (isEnd) "Workday ended" else "Workday started")
             .setContentText(if (isEnd) "Your working hours have ended." else "Your working hours have started.")
             .setContentIntent(openApp)

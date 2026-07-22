@@ -131,7 +131,7 @@ class WidgetFocusActionCallback : ActionCallback {
 }
 
 private fun widgetAccent(accentKey: String): Color = if (accentKey.startsWith("#")) {
-    runCatching { Color(android.graphics.Color.parseColor(accentKey)) }.getOrDefault(Color(0xFF6E8B74))
+    runCatching { Color(android.graphics.Color.parseColor(accentKey)) }.getOrDefault(Color(0xFF6697FF))
 } else {
     when (accentKey) {
         "mint" -> Color(0xFF43A779)
@@ -139,6 +139,6 @@ private fun widgetAccent(accentKey: String): Color = if (accentKey.startsWith("#
         "clay" -> Color(0xFFC98261)
         "sky" -> Color(0xFF5C8DB8)
         "lavender" -> Color(0xFF8A7CCF)
-        else -> Color(0xFF6E8B74)
+        else -> Color(0xFF6697FF)
     }
 }

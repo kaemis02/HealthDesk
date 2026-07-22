@@ -58,7 +58,7 @@ class FlutterLegacyImportAdapter {
 
     private fun JsonObject.toBackupSettings(): BackupSettings = BackupSettings(
         themeMode = stringOrNull("themeMode") ?: if (booleanOrDefault("darkMode", false)) "dark" else "light",
-        accentKey = "sage",
+        accentKey = "#6697FF",
         languageCode = stringOrNull("languageCode") ?: "en",
         timerMode = "normalTimer",
         workSessionMinutes = intOrDefault("fullIntervalMinutes", 50).coerceAtLeast(1),
