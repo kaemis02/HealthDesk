@@ -10,7 +10,6 @@ import com.kaemis.healthdesk.HealthDeskApplication
 import com.kaemis.healthdesk.MainActivity
 import com.kaemis.healthdesk.R
 import com.kaemis.healthdesk.platform.notification.HealthDeskNotificationChannels
-import com.kaemis.healthdesk.platform.notification.HealthDeskNotificationIcon
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -48,7 +47,6 @@ class ReminderReceiver : BroadcastReceiver() {
     private fun showNotification(context: Context, title: String, reminderId: String) {
         val notification = NotificationCompat.Builder(context, HealthDeskNotificationChannels.REMINDERS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_small)
-            .setLargeIcon(HealthDeskNotificationIcon.large(context))
             .setContentTitle(title)
             .setContentText("HealthDesk reminder")
             .setContentIntent(

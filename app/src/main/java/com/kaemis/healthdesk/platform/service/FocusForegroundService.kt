@@ -11,7 +11,6 @@ import androidx.core.app.NotificationCompat
 import com.kaemis.healthdesk.MainActivity
 import com.kaemis.healthdesk.R
 import com.kaemis.healthdesk.platform.notification.HealthDeskNotificationChannels
-import com.kaemis.healthdesk.platform.notification.HealthDeskNotificationIcon
 
 class FocusForegroundService : Service() {
     override fun onCreate() {
@@ -63,7 +62,6 @@ class FocusForegroundService : Service() {
         },
     )
         .setSmallIcon(R.drawable.ic_notification_small)
-        .setLargeIcon(HealthDeskNotificationIcon.large(this))
         .setContentTitle("HealthDesk")
         .setContentText("$phaseLabel - $remainingLabel")
         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
